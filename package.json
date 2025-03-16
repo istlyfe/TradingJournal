@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "npm install papaparse axios ",
+    "prebuild": "npm install",
     "build": "next build",
     "netlify-build": "NETLIFY=true npm run build",
     "start": "next start",

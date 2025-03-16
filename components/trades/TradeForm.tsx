@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { isFuturesContract, getFuturesContractMultiplier } from "@/lib/utils";
 
 export default function TradeForm() {
   const router = useRouter();
@@ -34,15 +35,19 @@ export default function TradeForm() {
     const exitPrice = parseFloat(formData.exitPrice);
     const quantity = parseFloat(formData.quantity);
     
+    // Get contract multiplier for futures
+    const symbol = formData.symbol.trim();
+    const multiplier = isFuturesContract(symbol) ? getFuturesContractMultiplier(symbol) : 1;
+    
     let pnl = 0;
     if (formData.direction === "LONG") {
-      pnl = (exitPrice - entryPrice) * quantity;
+      pnl = (exitPrice - entryPrice) * quantity * multiplier;
     } else {
-      pnl = (entryPrice - exitPrice) * quantity;
+      pnl = (entryPrice - exitPrice) * quantity * multiplier;
     }
 
     // In a real app, you would save this to your database
-    console.log("Trade submitted:", { ...formData, pnl });
+    console.log("Trade submitted:", { ...formData, pnl, multiplier });
     
     // For demo purposes, let's assume it was successful
     alert(`Trade saved successfully! P&L: $${pnl.toFixed(2)}`);

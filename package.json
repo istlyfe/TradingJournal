@@ -5,14 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "npm install --save-dev typescript @types/react @types/node && npm install papaparse axios @radix-ui/react-tabs --force",
-    "build": "next build --no-lint",
-    "netlify-build": "NETLIFY=true npm run build",
+    "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "netlify-deploy": "netlify deploy --prod"
+    "lint": "next lint"
   },
   "dependencies": {
-    "@opennextjs/cloudflare": "^0.5.11",
     "@radix-ui/react-accordion": "^1.2.3",
     "@radix-ui/react-alert-dialog": "^1.1.6",
     "@radix-ui/react-aspect-ratio": "^1.1.2",
@@ -46,6 +43,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "critters": "0.0.23",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "8.5.2",
     "framer-motion": "^12.5.0",
@@ -68,8 +66,6 @@
     "vaul": "1.1.2"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250313.0",
-    "@netlify/plugin-nextjs": "5.10.0",
     "@types/node": "20.17.24",
     "@types/papaparse": "^5.3.15",
     "@types/react": "18.3.18",

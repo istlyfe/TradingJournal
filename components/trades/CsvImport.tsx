@@ -263,7 +263,8 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
                   const qty = parseFloat(order["Filled Qty"]?.replace(/[,]/g, "") || "0");
                   const price = parseFloat(order["Avg Fill Price"]?.replace(/[$,]/g, "") || "0");
                   const isBuy = order["B/S"].trim() === " Buy" || order["B/S"].trim() === "Buy";
-                  const multiplier = getFuturesContractMultiplier(symbol);
+                  const multiplier = getCorrectMultiplier(symbol);
+                  console.log(`Processing ${symbol} with multiplier: ${multiplier}`);
                   const timestamp = new Date(order.Timestamp);
                   
                   if (!qty || !price) {
@@ -522,7 +523,7 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
                   }
 
                   // Calculate contract multiplier for futures
-                  const contractMultiplier = isFuturesContract(symbol) ? getFuturesContractMultiplier(symbol) : 1;
+                  const contractMultiplier = isFuturesContract(symbol) ? getCorrectMultiplier(symbol) : 1;
 
                   validTrades.push({
                     id: crypto.randomUUID(),
@@ -642,6 +643,14 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
     setSelectedAccountId("new-account");
     setParsedTrades([]);
     setStep(1);
+  };
+
+  const getCorrectMultiplier = (symbol: string): number => {
+    // Special handling for NQ futures
+    if (symbol.includes('NQ') || symbol.includes('nq') || symbol.toUpperCase().includes('NASDAQ')) {
+      return 20; // E-mini Nasdaq 100 is $20 per point
+    }
+    return getFuturesContractMultiplier(symbol);
   };
 
   return (

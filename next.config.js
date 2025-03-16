@@ -4,33 +4,13 @@ const path = require('path');
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  experimental: {
-    esmExternals: true,
-    // Skip static generation for API routes
-    outputFileTracingExcludes: {
-      '*': ['node_modules/**/*'],
-    },
-  },
-  // Add option to disable static generation for API routes
-  output: 'standalone',
-  // Disable edge runtime which is causing issues
-  serverComponents: {
-    // Skip pre-rendering API routes that use request.url
-    allowDynamicValues: true,
-  },
-  transpilePackages: [
-    "papaparse",
-    "axios"
-  ],
+  // Allow production builds to succeed even if your project has type errors
   typescript: {
-    // !! WARN !!
-    // Dangerously allow production builds to successfully complete even if
-    // your project has type errors.
-    // !! WARN !!
     ignoreBuildErrors: true,
   },
   images: {
     unoptimized: true,
+    domains: ['images.unsplash.com'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -48,17 +28,8 @@ const nextConfig = {
       '@': path.resolve(__dirname),
     };
     
-    // Ensure external packages are properly resolved
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false,
-      path: false,
-    };
-    
     return config;
   },
-  trailingSlash: false,
-  basePath: '',
 };
 
 module.exports = nextConfig; 

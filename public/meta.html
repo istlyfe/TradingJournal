@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>MetaMask Fix</title>
+  <script>
+    // This prevents the "Cannot read properties of null (reading 'type')" error
+    // from MetaMask or other crypto wallet extensions
+    window.addEventListener('load', function() {
+      if (window.ethereum) {
+        // Create a mock function to prevent errors
+        const originalSend = window.ethereum.send;
+        window.ethereum.send = function() {
+          try {
+            return originalSend.apply(this, arguments);
+          } catch (error) {
+            console.log('Prevented MetaMask error');
+            return null;
+          }
+        };
+      }
+    });
+  </script>
+</head>
+<body>
+  <!-- This file is only used to define the script above -->
+</body>
+</html> 

@@ -69,7 +69,7 @@ export function getFuturesContractMultiplier(symbol: string): number {
   // Common futures contract sizes
   const contractSizes: Record<string, number> = {
     '/ES': 50,    // E-mini S&P 500
-    '/NQ': 20,    // E-mini Nasdaq 100
+    '/NQ': 20,    // E-mini Nasdaq 100 ($20 per point)
     '/YM': 5,     // E-mini Dow
     '/RTY': 50,   // E-mini Russell 2000
     '/CL': 1000,  // Crude Oil
@@ -84,6 +84,11 @@ export function getFuturesContractMultiplier(symbol: string): number {
   
   // Extract base symbol for matching
   const baseSymbol = symbol.split(' ')[0];
+  
+  // Handle common symbol variations
+  if (symbol.includes('NQ') || symbol.includes('nq') || symbol.toUpperCase().includes('NASDAQ')) {
+    return 20; // Ensure NQ is always $20 per point
+  }
   
   return contractSizes[baseSymbol] || 1;
 }

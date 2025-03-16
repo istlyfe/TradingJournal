@@ -2,6 +2,76 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 244, 247, 250;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 15, 23, 42;
+    --background-end-rgb: 30, 41, 59;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
+/* Better button styling */
+button {
+  @apply px-4 py-2 rounded-md transition-colors;
+}
+
+button:hover {
+  @apply opacity-90;
+}
+
+/* Better input styling */
+input, select, textarea {
+  @apply px-3 py-2 border rounded-md transition-colors;
+}
+
+input:focus, select:focus, textarea:focus {
+  @apply outline-none ring-2 ring-blue-500 ring-opacity-50;
+}
+
+/* Card styling */
+.card {
+  @apply bg-white dark:bg-gray-800 rounded-lg shadow-md p-4;
+}
+
+/* Navigation styling */
+.nav-link {
+  @apply transition-colors hover:opacity-80;
+}
+
+/* Table styling */
+table {
+  @apply w-full text-left;
+}
+
+th {
+  @apply py-3 px-4 font-medium;
+}
+
+td {
+  @apply py-2 px-4;
+}
+
+/* Container */
+.container {
+  @apply mx-auto px-4 max-w-7xl;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -57,4 +127,29 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+/* Checkbox custom styling */
+[role="checkbox"] {
+  @apply relative !important;
+  border-width: 2px !important;
+  background: transparent !important;
+}
+
+[role="checkbox"][data-state="checked"] {
+  background-color: hsl(var(--primary)) !important;
+  border-color: hsl(var(--primary)) !important;
+}
+
+.dark [role="checkbox"] {
+  border-color: hsl(var(--primary)) !important;
+}
+
+.dark [role="checkbox"][data-state="checked"] {
+  background-color: hsl(var(--primary)) !important;
+}
+
+/* Table cell with checkbox alignment */
+td:has([role="checkbox"]), th:has([role="checkbox"]) {
+  @apply text-center;
 }

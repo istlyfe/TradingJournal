@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trading Journal</title>
+  <!-- Fix for MetaMask/crypto wallet extension errors -->
+  <script>
+    // This prevents the "Cannot read properties of null (reading 'type')" error
+    window.addEventListener('load', function() {
+      if (window.ethereum) {
+        // Create a mock function to prevent errors
+        const originalSend = window.ethereum.send;
+        window.ethereum.send = function() {
+          try {
+            return originalSend.apply(this, arguments);
+          } catch (error) {
+            console.log('Prevented MetaMask error');
+            return null;
+          }
+        };
+      }
+    });
+  </script>
+</head>
+<body>
+  <noscript>
+    You need to enable JavaScript to run this app.
+  </noscript>
+  <div id="root">
+    <div style="display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column;">
+      <h1>Trading Journal</h1>
+      <p>Loading application...</p>
+    </div>
+  </div>
+</body>
+</html> 

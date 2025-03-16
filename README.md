@@ -1,30 +1,46 @@
-# Trading Journal Application
+# Trading Journal
 
-A web-based trading journal that allows traders to import, track, and analyze their trades.
+A web application for traders to track, analyze, and improve their trading performance.
 
 ## Features
 
-- Import trades from various platforms (Tradovate, TradingView, Interactive Brokers, ThinkorSwim, Webull)
-- Filter trades by account
-- View trades in a calendar format
-- Dashboard with performance metrics
-- Delete trades individually or in bulk
+- Import trades from CSV files (supports multiple platforms)
+- Track and visualize trading performance
+- Analyze profit/loss by symbol, strategy, and time
+- Calendar view of trading activity
+- Journal entries for trading insights
+- Responsive design for desktop and mobile
 
-## Technologies
+## Tech Stack
 
-- Next.js
+- Next.js 14
 - React
 - TypeScript
-- Tailwind CSS
-- Shadcn UI Components
+- TailwindCSS
+- Shadcn UI
+- Local storage for data persistence
 
-## Getting Started
+## Development
 
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Run the development server: `npm run dev`
-4. Open [http://localhost:3000](http://localhost:3000) in your browser
+```bash
+# Install dependencies
+npm install
 
-## Local Storage
+# Run development server
+npm run dev
 
-This application uses the browser's local storage to store trades and account information. No backend database is required. 
+# Build for production
+npm run build
+
+# Start production server
+npm start
+```
+
+## Deployment
+
+This project is configured for deployment on Vercel:
+
+```bash
+# Deploy with Vercel CLI
+vercel
+``` 

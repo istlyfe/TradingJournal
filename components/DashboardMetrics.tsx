@@ -18,7 +18,7 @@ export function DashboardMetrics({ trades }: DashboardMetricsProps) {
     .filter(trade => trade.entryDate && trade.exitDate)
     .map(trade => {
       const entry = new Date(trade.entryDate);
-      const exit = new Date(trade.exitDate);
+      const exit = new Date(trade.exitDate!);
       return (exit.getTime() - entry.getTime()) / 1000; // Duration in seconds
     });
   

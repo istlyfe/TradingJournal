@@ -237,7 +237,7 @@ export function BrokerSettings() {
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base">{broker.name}</CardTitle>
-                    <Badge variant={broker.isConnected ? "success" : "outline"}>
+                    <Badge variant={broker.isConnected ? "default" : "outline"}>
                       {broker.isConnected ? "Connected" : "Not Connected"}
                     </Badge>
                   </div>

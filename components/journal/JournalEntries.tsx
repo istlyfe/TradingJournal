@@ -338,7 +338,7 @@ export function JournalEntries() {
                             
                             {entry.sentiment && (
                               <Badge variant={
-                                entry.sentiment === "bullish" ? "success" :
+                                entry.sentiment === "bullish" ? "default" :
                                 entry.sentiment === "bearish" ? "destructive" : "outline"
                               } className="text-xs">
                                 {entry.sentiment.charAt(0).toUpperCase() + entry.sentiment.slice(1)}

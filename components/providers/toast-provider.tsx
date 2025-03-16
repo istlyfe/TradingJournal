@@ -31,7 +31,17 @@ export function useToast() {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const toast = ({ title, description, variant = "default", duration = 5000 }) => {
+  const toast = ({ 
+    title, 
+    description, 
+    variant = "default", 
+    duration = 5000 
+  }: { 
+    title: string; 
+    description?: string; 
+    variant?: "default" | "destructive" | "success" | "warning" | "info" | "error"; 
+    duration?: number 
+  }) => {
     const id = Math.random().toString(36).slice(2);
     const newToast: Toast = {
       id,

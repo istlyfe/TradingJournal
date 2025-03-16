@@ -20,18 +20,18 @@ export function formatDate(date: Date | string): string {
   return d.toLocaleDateString();
 }
 
+export function formatDateTime(date: Date | string): string {
+  if (!date) return '';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString();
+}
+
 export function formatCurrency(amount: number): string {
   if (amount === undefined || amount === null) return '';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
   }).format(amount);
-}
-
-export function formatDateTime(date: Date | string): string {
-  if (!date) return '';
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleString();
 }
 
 export function parseTradeDate(dateStr: string): Date {

@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
+    const format = searchParams.get("format");
 
     if (!userId) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 });
@@ -34,6 +35,17 @@ export async function GET(request: NextRequest) {
       result.push({
         ...watchlist,
         items: items.results
+      });
+    }
+    
+    // If format is JSON, return as downloadable file
+    if (format === "json") {
+      const fileName = `watchlists-${new Date().toISOString().split('T')[0]}.json`;
+      return new NextResponse(JSON.stringify(result, null, 2), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Disposition': `attachment; filename="${fileName}"`
+        }
       });
     }
     

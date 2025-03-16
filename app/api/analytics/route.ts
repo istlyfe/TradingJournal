@@ -5,6 +5,9 @@ interface Env {
   DB: D1Database;
 }
 
+// Add export configuration to mark this route as dynamic
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

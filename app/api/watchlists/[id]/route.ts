@@ -10,6 +10,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const { id } = params;
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
+    const format = searchParams.get("format");
 
     if (!userId) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 });
@@ -34,10 +35,23 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       .bind(id)
       .all();
     
-    return NextResponse.json({
+    const result = {
       ...watchlist,
       items: items.results
-    });
+    };
+    
+    // If format is JSON, return as downloadable file
+    if (format === "json") {
+      const fileName = `watchlist-${watchlist.name.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.json`;
+      return new NextResponse(JSON.stringify(result, null, 2), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Disposition': `attachment; filename="${fileName}"`
+        }
+      });
+    }
+    
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Error fetching watchlist:", error);
     return NextResponse.json({ error: "Failed to fetch watchlist" }, { status: 500 });

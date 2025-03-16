@@ -6,6 +6,17 @@ const nextConfig = {
   swcMinify: true,
   experimental: {
     esmExternals: true,
+    // Skip static generation for API routes
+    outputFileTracingExcludes: {
+      '*': ['node_modules/**/*'],
+    },
+  },
+  // Add option to disable static generation for API routes
+  output: 'standalone',
+  // Disable edge runtime which is causing issues
+  serverComponents: {
+    // Skip pre-rendering API routes that use request.url
+    allowDynamicValues: true,
   },
   transpilePackages: [
     "papaparse",
@@ -18,7 +29,6 @@ const nextConfig = {
     // !! WARN !!
     ignoreBuildErrors: true,
   },
-  output: 'standalone',
   images: {
     unoptimized: true,
     remotePatterns: [

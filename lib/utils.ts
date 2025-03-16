@@ -1,126 +1,89 @@
-import { type ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+export function cn(...inputs: (string | boolean | undefined | {[key: string]: boolean})[]): string {
+  const classes = inputs.filter(Boolean);
+  
+  return classes
+    .flatMap(cls => {
+      if (typeof cls === 'string') return cls;
+      if (typeof cls === 'object') {
+        return Object.entries(cls)
+          .filter(([_, value]) => Boolean(value))
+          .map(([key]) => key);
+      }
+      return [];
+    })
+    .join(' ');
 }
 
-export function formatDate(input: string | number | Date): string {
-  const date = new Date(input);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+export function formatDate(date: Date | string): string {
+  if (!date) return '';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleDateString();
 }
 
-export function formatDateTime(input: string | number | Date): string {
-  const date = new Date(input);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    hour12: true
-  });
+export function formatCurrency(amount: number): string {
+  if (amount === undefined || amount === null) return '';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(amount);
 }
 
-export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(value);
+export function formatDateTime(date: Date | string): string {
+  if (!date) return '';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString();
 }
 
-export function percentChange(current: number, previous: number): string {
-  if (previous === 0) return "+0%";
-  const change = ((current - previous) / Math.abs(previous)) * 100;
-  return `${change > 0 ? "+" : ""}${change.toFixed(1)}%`;
-}
-
-// Attempt to parse a date string using multiple formats
-export function parseTradeDate(dateStr: string): Date | null {
-  // First try the standard JavaScript Date parsing
-  const date = new Date(dateStr);
-  if (!isNaN(date.getTime())) {
-    return date;
+export function parseTradeDate(dateStr: string): Date {
+  if (!dateStr) return new Date();
+  try {
+    return new Date(dateStr);
+  } catch (e) {
+    console.error("Error parsing date:", e);
+    return new Date();
   }
-  
-  // Try some common date formats
-  const formats = [
-    // MM/DD/YYYY formats
-    {
-      regex: /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s?(\d{1,2})?:?(\d{1,2})?:?(\d{1,2})?\s?(AM|PM|am|pm)?$/,
-      parse: (match: RegExpMatchArray) => {
-        const month = parseInt(match[1]) - 1;
-        const day = parseInt(match[2]);
-        const year = parseInt(match[3]);
-        let hours = parseInt(match[4] || "0");
-        const minutes = parseInt(match[5] || "0");
-        const seconds = parseInt(match[6] || "0");
-        const ampm = match[7]?.toUpperCase();
-        
-        if (ampm === "PM" && hours < 12) hours += 12;
-        if (ampm === "AM" && hours === 12) hours = 0;
-        
-        return new Date(year, month, day, hours, minutes, seconds);
-      }
-    },
-    // YYYY-MM-DD formats
-    {
-      regex: /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):?(\d{1,2})?:?(\d{1,2})?)?$/,
-      parse: (match: RegExpMatchArray) => {
-        const year = parseInt(match[1]);
-        const month = parseInt(match[2]) - 1;
-        const day = parseInt(match[3]);
-        const hours = parseInt(match[4] || "0");
-        const minutes = parseInt(match[5] || "0");
-        const seconds = parseInt(match[6] || "0");
-        
-        return new Date(year, month, day, hours, minutes, seconds);
-      }
-    }
-  ];
-  
-  for (const format of formats) {
-    const match = dateStr.match(format.regex);
-    if (match) {
-      const parsedDate = format.parse(match);
-      if (!isNaN(parsedDate.getTime())) {
-        return parsedDate;
-      }
-    }
-  }
-  
-  return null;
 }
 
-// Get the multiplier for futures contracts
-export function getFuturesContractMultiplier(symbol: string): number {
-  // Common futures contract multipliers
-  const multipliers: Record<string, number> = {
-    'ES': 50,  // E-mini S&P 500
-    'NQ': 20,  // E-mini Nasdaq-100
-    'YM': 5,   // E-mini Dow
-    'RTY': 10, // E-mini Russell 2000
-    'CL': 1000, // Crude Oil
-    'GC': 100,  // Gold
-    'SI': 5000, // Silver
-    'ZB': 1000, // 30-Year T-Bond
-    'ZN': 1000, // 10-Year T-Note
-    '6E': 125000, // Euro FX
-  };
-
-  // Extract the base symbol (e.g., 'NQH4' -> 'NQ')
-  const baseSymbol = symbol.replace(/[0-9]/g, '').replace(/[A-Z]$/, '');
-  
-  return multipliers[baseSymbol] || 1;
-}
-
-// Determine if a symbol is a futures contract
 export function isFuturesContract(symbol: string): boolean {
-  // Common futures symbols often end with month/year codes or have typical prefixes
-  const futuresPattern = /^(ES|NQ|YM|RTY|CL|GC|SI|ZN|ZF|ZT|NG|RB|HO|M[ES]|M[NQ]|M[YM]|M[2K]|MGC)/;
-  return futuresPattern.test(symbol.trim());
+  if (!symbol) return false;
+  
+  // Common futures markers like /ES, /NQ, etc.
+  if (symbol.startsWith('/')) return true;
+  
+  // Common futures suffixes
+  const futuresSuffixes = ['F', 'G', 'H', 'J', 'K', 'M', 'N', 'Q', 'U', 'V', 'X', 'Z'];
+  const lastChar = symbol.slice(-1).toUpperCase();
+  const secondLastChar = symbol.slice(-2, -1);
+  
+  // If the last character is a number and second-to-last is a futures month code
+  if (!isNaN(Number(lastChar)) && futuresSuffixes.includes(secondLastChar.toUpperCase())) {
+    return true;
+  }
+  
+  return false;
+}
+
+export function getFuturesContractMultiplier(symbol: string): number {
+  if (!isFuturesContract(symbol)) return 1;
+  
+  // Common futures contract sizes
+  const contractSizes: Record<string, number> = {
+    '/ES': 50,    // E-mini S&P 500
+    '/NQ': 20,    // E-mini Nasdaq 100
+    '/YM': 5,     // E-mini Dow
+    '/RTY': 50,   // E-mini Russell 2000
+    '/CL': 1000,  // Crude Oil
+    '/GC': 100,   // Gold
+    '/SI': 5000,  // Silver
+    '/ZB': 1000,  // US Treasury Bond
+    '/ZN': 1000,  // 10-Year Treasury Note
+    '/ZF': 1000,  // 5-Year Treasury Note
+    '/ZT': 1000,  // 2-Year Treasury Note
+    '/6E': 125000 // Euro FX
+  };
+  
+  // Extract base symbol for matching
+  const baseSymbol = symbol.split(' ')[0];
+  
+  return contractSizes[baseSymbol] || 1;
 }

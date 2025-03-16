@@ -78,8 +78,9 @@ export function getFuturesContractMultiplier(symbol: string): number {
   // Always uppercase for consistent checks
   const upperSymbol = symbol.toUpperCase();
   
-  // NQ futures - always $20 per point
+  // NQ futures - ALWAYS $20 per point, enforced as a hard-coded value
   if (upperSymbol.includes('NQ') || upperSymbol.includes('NASDAQ')) {
+    console.log('Using multiplier 20 for NQ futures');
     return 20;
   }
   
@@ -117,37 +118,45 @@ export function getFuturesContractMultiplier(symbol: string): number {
   // Extract base symbol for matching
   const baseSymbol = symbol.split(' ')[0];
   
+  // Double-check for NQ again to be extra safe
+  if (baseSymbol.includes('NQ')) {
+    return 20;
+  }
+  
   return contractSizes[baseSymbol] || 1;
 }
 
 // Use this function for calculating PnL
 export function calculateTradePnL(symbol: string, direction: string, entryPrice: number, exitPrice: number, quantity: number): number {
+  if (!symbol || !direction || !entryPrice || !exitPrice || !quantity) {
+    console.warn('Missing required parameters for PnL calculation');
+    return 0;
+  }
+  
   // Always get the multiplier first
   const multiplier = getFuturesContractMultiplier(symbol);
   
-  // Special handling for NQ futures with decimal prices
-  // If NQ and prices are in decimals (like 18576.25) rather than ticks (like 18576)
-  // Futures are often quoted with decimal places but P&L is calculated on whole point moves
+  // Special handling for NQ futures
   const upperSymbol = symbol.toUpperCase();
   const isNQFuture = upperSymbol.includes('NQ') || upperSymbol.includes('NASDAQ');
   
-  // Determine if we need to handle decimal places differently
-  // For NQ, if the entry or exit price has decimal places, we need to handle it specially
-  const hasDecimalPrices = (
-    entryPrice !== Math.floor(entryPrice) || 
-    exitPrice !== Math.floor(exitPrice)
-  );
+  // FORCE multiplier to be 20 for NQ
+  const effectiveMultiplier = isNQFuture ? 20 : multiplier;
   
   // Calculate PnL based on direction
   let pnl = 0;
   if (direction.toUpperCase() === 'LONG') {
-    pnl = (exitPrice - entryPrice) * quantity * multiplier;
+    pnl = (exitPrice - entryPrice) * quantity * effectiveMultiplier;
   } else {
-    pnl = (entryPrice - exitPrice) * quantity * multiplier;
+    pnl = (entryPrice - exitPrice) * quantity * effectiveMultiplier;
   }
   
+  // Round to 2 decimal places for currency
+  pnl = Math.round(pnl * 100) / 100;
+  
   // Log the calculation for debugging
-  console.log(`PnL calculation: ${direction} ${symbol} Entry: ${entryPrice}, Exit: ${exitPrice}, Qty: ${quantity}, Multiplier: ${multiplier}, PnL: ${pnl}`);
+  console.log(`PnL calculation: ${direction} ${symbol} Entry: ${entryPrice}, Exit: ${exitPrice}, Qty: ${quantity}`);
+  console.log(`Using multiplier: ${effectiveMultiplier} for ${symbol}, PnL: ${pnl}`);
   
   return pnl;
 }

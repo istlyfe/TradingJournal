@@ -275,7 +275,10 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
                   const isBuy = action === " Buy" || action === "Buy" || action === "BUY" || action === "B";
                   
                   const multiplier = getContractMultiplier(symbol);
-                  console.log(`Processing ${symbol} with multiplier: ${multiplier}`);
+                  // Force NQ multiplier to always be 20
+                  const effectiveMultiplier = symbol.toUpperCase().includes('NQ') ? 20 : multiplier;
+                  
+                  console.log(`Processing ${symbol} with multiplier: ${effectiveMultiplier}`);
                   const timestamp = new Date(order.Timestamp);
                   
                   if (!qty || !price) {
@@ -534,7 +537,10 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
                   }
 
                   // Calculate contract multiplier for futures
-                  const contractMultiplier = isFutures(symbol) ? getContractMultiplier(symbol) : 1;
+                  const isNQ = symbol.toUpperCase().includes('NQ');
+                  const contractMultiplier = isNQ ? 20 : (isFutures(symbol) ? getContractMultiplier(symbol) : 1);
+                  
+                  console.log(`Using multiplier ${contractMultiplier} for ${symbol}`);
 
                   validTrades.push({
                     id: crypto.randomUUID(),

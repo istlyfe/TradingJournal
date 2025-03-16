@@ -38,20 +38,26 @@ export function calculatePnL(
   // Get multiplier for futures contracts
   const multiplier = getFuturesContractMultiplier(symbol);
   
+  // Ensure NQ always uses 20 as multiplier regardless of what's returned
+  const effectiveMultiplier = symbol.toUpperCase().includes('NQ') ? 20 : multiplier;
+  
   // Calculate raw PnL
   let pnl = 0;
   if (direction === "LONG") {
-    pnl = (exitPrice - entryPrice) * quantity * multiplier;
+    pnl = (exitPrice - entryPrice) * quantity * effectiveMultiplier;
   } else {
-    pnl = (entryPrice - exitPrice) * quantity * multiplier;
+    pnl = (entryPrice - exitPrice) * quantity * effectiveMultiplier;
   }
+  
+  // Round to nearest cent
+  pnl = Math.round(pnl * 100) / 100;
   
   // Debug logging
   console.log(`PnL calculation for ${symbol} (${direction}):`);
-  console.log(`Entry: ${entryPrice}, Exit: ${exitPrice}, Quantity: ${quantity}, Multiplier: ${multiplier}`);
+  console.log(`Entry: ${entryPrice}, Exit: ${exitPrice}, Quantity: ${quantity}, Multiplier: ${effectiveMultiplier}`);
   console.log(`Formula: ${direction === "LONG" ? 
-    `(${exitPrice} - ${entryPrice}) * ${quantity} * ${multiplier}` : 
-    `(${entryPrice} - ${exitPrice}) * ${quantity} * ${multiplier}`}`);
+    `(${exitPrice} - ${entryPrice}) * ${quantity} * ${effectiveMultiplier}` : 
+    `(${entryPrice} - ${exitPrice}) * ${quantity} * ${effectiveMultiplier}`}`);
   console.log(`Result: ${pnl}`);
   
   return pnl;

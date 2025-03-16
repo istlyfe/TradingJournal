@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Add export configuration to mark this route as dynamic
-export const dynamic = 'force-dynamic';
+// Comment out for static export
+// export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {

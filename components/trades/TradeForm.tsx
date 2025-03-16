@@ -42,18 +42,20 @@ export default function TradeForm() {
     
     // Get multiplier for logging
     const multiplier = getContractMultiplier(symbol);
+    // Force NQ multiplier to always be 20
+    const effectiveMultiplier = symbol.toUpperCase().includes('NQ') ? 20 : multiplier;
     
     // In a real app, you would save this to your database
-    console.log("Trade submitted:", { 
-      ...formData, 
-      pnl, 
-      multiplier,
-      calculation: {
-        formula: direction === "LONG" ? 
-          `(${exitPrice} - ${entryPrice}) * ${quantity} * ${multiplier}` : 
-          `(${entryPrice} - ${exitPrice}) * ${quantity} * ${multiplier}`,
-        result: pnl
-      }
+    console.log("PnL Calculation:", {
+      direction,
+      entryPrice,
+      exitPrice,
+      quantity,
+      multiplier: effectiveMultiplier,
+      formula: direction === "LONG" ?
+        `(${exitPrice} - ${entryPrice}) * ${quantity} * ${effectiveMultiplier}` :
+        `(${entryPrice} - ${exitPrice}) * ${quantity} * ${effectiveMultiplier}`,
+      result: pnl,
     });
     
     // For demo purposes, let's assume it was successful

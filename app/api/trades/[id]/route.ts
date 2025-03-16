@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calculatePnL } from "@/lib/tradeService";
 
-// Mark this route as dynamic
-export const dynamic = 'force-dynamic';
+// Comment out for static export
+// export const dynamic = 'force-dynamic';
 
 // Mock data - same as in the main trades route
 const mockTrades = [

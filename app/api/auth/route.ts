@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Mark this route as dynamic
-export const dynamic = 'force-dynamic';
+// Comment out dynamic export for static build
+// export const dynamic = 'force-dynamic';
+
+// Mock user data
+const mockUsers = [
+  {
+    id: "user_1",
+    email: "demo@example.com",
+    name: "Demo User",
+    password: "password123",
+  }
+];
 
 export async function GET(request: NextRequest) {
   try {

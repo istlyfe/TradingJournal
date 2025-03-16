@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "(npm list papaparse || npm install papaparse --force) && (npm list axios || npm install axios --force)",
+    "prebuild": "(npm list papaparse || npm install papaparse --force) && (npm list axios || npm install axios --force) && (npm list @radix-ui/react-tabs || npm install @radix-ui/react-tabs --force)",
     "build": "next build",
     "netlify-build": "NETLIFY=true npm run build",
     "start": "next start",
@@ -35,7 +35,7 @@
     "@radix-ui/react-slider": "^1.2.3",
     "@radix-ui/react-slot": "^1.1.2",
     "@radix-ui/react-switch": "^1.1.3",
-    "@radix-ui/react-tabs": "1.1.3",
+    "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toast": "^1.2.6",
     "@radix-ui/react-toggle": "^1.1.2",
     "@radix-ui/react-toggle-group": "^1.1.2",

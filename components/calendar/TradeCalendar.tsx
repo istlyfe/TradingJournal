@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { addDays, isWithinInterval, parseISO, subMonths, addMonths } from "date-fns";
 import { useAccounts } from "@/hooks/useAccounts";
 import { ACCOUNT_SELECTION_CHANGE } from "@/components/accounts/AccountFilter";
+import { DayTradesDialog } from "./DayTradesDialog";
+import { SimpleDayDialog } from "./SimpleDayDialog";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 export function TradeCalendar() {
   const [trades, setTrades] = useState<Record<string, Trade>>({});
@@ -16,12 +19,22 @@ export function TradeCalendar() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const { selectedAccounts } = useAccounts();
   const [forceUpdate, setForceUpdate] = useState(0);
+  const [dialogOpen, setDialogOpen] = useState(false);
   
   // Load trades
   useEffect(() => {
+    console.log("Loading trades from localStorage");
     const storedTrades = localStorage.getItem('tradingJournalTrades');
     if (storedTrades) {
-      setTrades(JSON.parse(storedTrades));
+      try {
+        const parsedTrades = JSON.parse(storedTrades);
+        console.log("Trades loaded:", Object.keys(parsedTrades).length);
+        setTrades(parsedTrades);
+      } catch (error) {
+        console.error("Error parsing trades from localStorage:", error);
+      }
+    } else {
+      console.log("No trades found in localStorage");
     }
   }, []);
   
@@ -48,46 +61,28 @@ export function TradeCalendar() {
     
     return () => {
       window.removeEventListener(ACCOUNT_SELECTION_CHANGE, handleSelectionChange);
-      window.removeEventListener('storage', handleSelectionChange as any);
+      window.removeEventListener('storage', (e) => {
+        if (e.key === 'tradingJournalSelectedAccounts') {
+          handleSelectionChange();
+        }
+      });
     };
   }, []);
   
-  // Modify the getFilteredTrades dependency array to include forceUpdate
+  // Track dialog state changes
+  useEffect(() => {
+    console.log("Dialog state updated:", dialogOpen, selectedDate?.toDateString());
+  }, [dialogOpen, selectedDate]);
+  
+  // Helper to filter trades by selected accounts
   const getFilteredTrades = useCallback(() => {
-    console.log("Calendar filtering trades, selected accounts:", selectedAccounts);
+    const tradesArray = Object.values(trades);
+    if (!selectedAccounts.length) return tradesArray;
     
-    // If no accounts are selected, return empty array
-    if (!selectedAccounts || selectedAccounts.length === 0) {
-      console.log("No accounts selected, returning empty array");
-      return [];
-    }
-    
-    return Object.values(trades).filter(trade => 
+    return tradesArray.filter(trade => 
       selectedAccounts.includes(trade.accountId)
     );
   }, [trades, selectedAccounts, forceUpdate]);
-  
-  // Calculate week summary for filtered trades
-  const calculateWeekSummary = useCallback((weekStart: Date) => {
-    const weekEnd = addDays(weekStart, 6);
-    const weekTrades = getFilteredTrades().filter(trade => {
-      const tradeDate = parseISO(trade.exitDate || trade.entryDate);
-      return isWithinInterval(tradeDate, { start: weekStart, end: weekEnd });
-    });
-
-    const totalPnL = weekTrades.reduce((sum, trade) => sum + (trade.pnl || 0), 0);
-    const winCount = weekTrades.filter(trade => (trade.pnl || 0) > 0).length;
-    const lossCount = weekTrades.filter(trade => (trade.pnl || 0) < 0).length;
-    const winRate = weekTrades.length > 0 ? (winCount / weekTrades.length) * 100 : 0;
-
-    return {
-      trades: weekTrades,
-      totalPnL,
-      winCount,
-      lossCount,
-      winRate,
-    };
-  }, [getFilteredTrades]);
   
   // Navigation methods
   const goToPreviousMonth = () => {
@@ -155,12 +150,17 @@ export function TradeCalendar() {
   // Get trades for a specific date
   const getTradesForDate = useCallback((date: Date) => {
     return getFilteredTrades().filter(trade => {
-      const tradeDate = parseISO(trade.exitDate || trade.entryDate);
-      return (
-        tradeDate.getFullYear() === date.getFullYear() &&
-        tradeDate.getMonth() === date.getMonth() &&
-        tradeDate.getDate() === date.getDate()
-      );
+      try {
+        const tradeDate = parseISO(trade.exitDate || trade.entryDate);
+        return (
+          tradeDate.getFullYear() === date.getFullYear() &&
+          tradeDate.getMonth() === date.getMonth() &&
+          tradeDate.getDate() === date.getDate()
+        );
+      } catch (error) {
+        console.error("Error parsing date for trade:", trade.id, error);
+        return false;
+      }
     });
   }, [getFilteredTrades]);
   
@@ -170,9 +170,34 @@ export function TradeCalendar() {
     return dateTrades.reduce((sum, trade) => sum + (trade.pnl || 0), 0);
   }, [getTradesForDate]);
   
-  // Get selected day trades
   const selectedDayTrades = selectedDate ? getTradesForDate(selectedDate) : [];
+
+  // Handle day click
+  const handleDayClick = (date: Date) => {
+    console.log("===== DAY CLICKED =====");
+    console.log("Date clicked:", date.toDateString());
+    setSelectedDate(date);
+    
+    // Only open dialog if there are trades for this day
+    const tradesForDay = getTradesForDate(date);
+    console.log("Trades for selected date:", tradesForDay.length);
+    console.log("Trade IDs:", tradesForDay.map(t => t.id));
+    
+    if (tradesForDay.length > 0) {
+      console.log("Opening dialog with", tradesForDay.length, "trades");
+      setDialogOpen(true);
+    } else {
+      console.log("No trades for this date, not opening dialog");
+      setDialogOpen(false);
+    }
+  };
   
+  // Format month for display
+  const monthYearDisplay = currentDate.toLocaleString('default', { 
+    month: 'long', 
+    year: 'numeric' 
+  });
+
   // If no accounts are selected, we should show an empty state
   if (selectedAccounts.length === 0) {
     return (
@@ -194,44 +219,38 @@ export function TradeCalendar() {
   
   return (
     <div className="space-y-4">
-      {/* Calendar Section */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-muted-foreground" />
-              <CardTitle>Trading Calendar</CardTitle>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={goToPreviousMonth}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                onClick={goToCurrentMonth}
-              >
-                Today
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={goToNextMonth}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle>{monthYearDisplay}</CardTitle>
+          <div className="flex space-x-2">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={goToPreviousMonth}
+              aria-label="Previous Month"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={goToCurrentMonth}
+              aria-label="Current Month"
+            >
+              Today
+            </Button>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={goToNextMonth}
+              aria-label="Next Month"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-          <CardDescription>
-            {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-          </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Calendar grid */}
-          <div className="grid grid-cols-7 gap-px bg-muted text-center text-sm">
+          <div className="grid grid-cols-7 gap-px bg-muted text-center">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
               <div key={day} className="py-2 font-medium">
                 {day}
@@ -250,7 +269,7 @@ export function TradeCalendar() {
               return (
                 <button
                   key={index}
-                  onClick={() => setSelectedDate(date)}
+                  onClick={() => handleDayClick(date)}
                   className={`min-h-[100px] bg-background p-2 text-left transition-colors hover:bg-accent ${
                     !isCurrentMonth && 'text-muted-foreground'
                   } ${isSelected && 'ring-2 ring-ring'}`}
@@ -275,69 +294,36 @@ export function TradeCalendar() {
         </CardContent>
       </Card>
 
-      {/* Selected day details */}
-      {selectedDate && selectedDayTrades.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              Trades for {selectedDate.toLocaleDateString()}
-            </CardTitle>
-            <CardDescription>
-              {selectedDayTrades.length} trade{selectedDayTrades.length !== 1 ? 's' : ''} • Total P&L: {
-                formatCurrency(selectedDayTrades.reduce((sum, trade) => sum + (trade.pnl || 0), 0))
-              }
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto">
-              {selectedDayTrades.map((trade) => (
-                <div 
-                  key={trade.id} 
-                  className="border rounded-md p-3 hover:bg-muted/30"
-                >
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg font-medium">{trade.symbol}</span>
-                      <span className={`px-1.5 py-0.5 text-xs rounded ${
-                        trade.direction === 'LONG' 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' 
-                          : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                      }`}>
-                        {trade.direction}
-                      </span>
-                    </div>
-                    <span className={`text-sm font-medium ${
-                      (trade.pnl || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {formatCurrency(trade.pnl || 0)}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Entry:</span>{" "}
-                      {new Date(trade.entryDate).toLocaleString()}
-                    </div>
-                    {trade.exitDate && (
-                      <div>
-                        <span className="text-muted-foreground">Exit:</span>{" "}
-                        {new Date(trade.exitDate).toLocaleString()}
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-muted-foreground">Qty:</span>{" "}
-                      {trade.quantity}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Account:</span>{" "}
-                      {trade.accountId}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Testing button to open dialog */}
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-medium">
+            Selected Date: {selectedDate ? selectedDate.toDateString() : "None"}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {selectedDayTrades.length} trades for this date
+          </p>
+        </div>
+        <Button
+          onClick={() => {
+            console.log("Test button clicked");
+            setDialogOpen(true);
+          }}
+        >
+          Test Open Dialog
+        </Button>
+      </div>
+
+      {/* Use the simple dialog */}
+      <SimpleDayDialog 
+        date={selectedDate}
+        trades={selectedDayTrades}
+        isOpen={dialogOpen}
+        onClose={() => {
+          console.log("Dialog closed");
+          setDialogOpen(false);
+        }}
+      />
     </div>
   );
 } 

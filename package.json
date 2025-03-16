@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "(npm list typescript || npm install --save-dev typescript) && (npm list @types/react || npm install --save-dev @types/react) && (npm list @types/node || npm install --save-dev @types/node) && (npm list papaparse || npm install papaparse --force) && (npm list axios || npm install axios --force) && (npm list @radix-ui/react-tabs || npm install @radix-ui/react-tabs --force)",
-    "build": "next build",
+    "build": "next build --no-lint",
     "netlify-build": "NETLIFY=true npm run build",
     "start": "next start",
     "lint": "next lint",

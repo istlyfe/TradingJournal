@@ -10,6 +10,7 @@ import {
   LineChart,
   List,
   Settings,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,11 @@ const navItems = [
     title: "Trades",
     href: "/trades",
     icon: List,
+  },
+  {
+    title: "Journal",
+    href: "/journal",
+    icon: BookOpen,
   },
   {
     title: "Analytics",

@@ -38,6 +38,7 @@ interface DataTableProps<TData, TValue> {
   onDeleteRows?: (rowIds: string[]) => void;
   enableRowSelection?: boolean;
   getRowId?: (row: TData) => string;
+  onRowSelectionChange?: (rowIds: string[]) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -46,10 +47,27 @@ export function DataTable<TData, TValue>({
   onDeleteRows,
   enableRowSelection = false,
   getRowId = (row: any) => row.id,
+  onRowSelectionChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const handleRowSelectionChange = (newRowSelection: RowSelectionState) => {
+    setRowSelection(newRowSelection);
+    
+    // Call the parent's onRowSelectionChange callback if provided
+    if (onRowSelectionChange) {
+      const selectedIds = Object.keys(newRowSelection).filter(
+        id => newRowSelection[id]
+      ).map(id => {
+        const row = data.find((r, idx) => String(idx) === id);
+        return row ? getRowId(row) : '';
+      }).filter(Boolean);
+      
+      onRowSelectionChange(selectedIds);
+    }
+  };
 
   const table = useReactTable({
     data,
@@ -58,13 +76,13 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    onRowSelectionChange: setRowSelection,
+    onRowSelectionChange: handleRowSelectionChange,
     enableRowSelection,
     state: {
       sorting,
       rowSelection,
     },
-    getRowId: (row) => getRowId(row),
+    getRowId: (row, index) => String(index), // Use index for internal selection management
   });
 
   const selectedRows = table.getSelectedRowModel().rows;

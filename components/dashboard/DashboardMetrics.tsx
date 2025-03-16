@@ -1,16 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BarChart, DollarSign, TrendingUp, TrendingDown, PieChart, Calendar, Clock, ArrowUpRight, ArrowDownRight, Percent } from "lucide-react";
+import { BarChart, DollarSign, TrendingUp, TrendingDown, PieChart, Calendar, Clock, ArrowUpRight, ArrowDownRight, Percent, Filter } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trade } from "@/types/trade";
 import { formatCurrency } from "@/lib/utils";
-import { Account } from "@/components/accounts/AccountManager";
+import { Account } from "@/types/account";
 import { subWeeks, subMonths, subYears, isAfter, isBefore, parseISO, differenceInMinutes, format } from 'date-fns';
 import { useAccounts } from "@/hooks/useAccounts";
 import { ACCOUNT_SELECTION_CHANGE } from "@/components/accounts/AccountFilter";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Helper function to get date ranges
 function getDateRanges() {
@@ -272,7 +273,16 @@ export function DashboardMetrics() {
   const dailyPnL = getDailyPnL();
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {selectedAccounts.length === 0 && (
+        <Alert>
+          <Filter className="h-4 w-4" />
+          <AlertDescription>
+            No accounts selected. Select accounts using the account filter to view metrics.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <div className="flex flex-col gap-4">
         <Tabs 
           defaultValue="thisMonth" 

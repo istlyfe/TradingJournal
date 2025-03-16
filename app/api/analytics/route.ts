@@ -54,11 +54,11 @@ export async function GET(request: NextRequest) {
       .first();
     
     // Calculate derived metrics
-    const totalTrades = stats?.total_trades || 0;
-    const winningTrades = stats?.winning_trades || 0;
-    const losingTrades = stats?.losing_trades || 0;
-    const grossProfit = stats?.gross_profit || 0;
-    const grossLoss = Math.abs(stats?.gross_loss || 0);
+    const totalTrades = stats?.total_trades as number || 0;
+    const winningTrades = stats?.winning_trades as number || 0;
+    const losingTrades = stats?.losing_trades as number || 0;
+    const grossProfit = stats?.gross_profit as number || 0;
+    const grossLoss = Math.abs(stats?.gross_loss as number || 0);
     
     const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
     const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;

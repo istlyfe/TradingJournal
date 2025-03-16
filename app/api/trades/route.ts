@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       .bind(...countParams)
       .first();
     
-    const total = countResult?.total || 0;
+    const total = countResult?.total as number || 0;
     const totalPages = Math.ceil(total / limit);
     
     return NextResponse.json({

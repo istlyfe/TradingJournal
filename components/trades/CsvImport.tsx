@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useBrokers } from "@/hooks/useBrokers";
 import { Trade } from "@/types/trade";
 import { Input } from "@/components/ui/input";
 
@@ -151,14 +152,15 @@ const SUPPORTED_PLATFORMS = [
 export function CsvImport() {
   const [platform, setPlatform] = useState<string>();
   const [selectedFile, setSelectedFile] = useState<File>();
-  const { accounts, createAccount } = useAccounts();
-  const [selectedAccount, setSelectedAccount] = useState<string>("new-account");
+  const { accounts, createAccount, toggleAccount } = useAccounts();
+  const [selectedAccount, setSelectedAccountId] = useState<string>("new-account");
   const [step, setStep] = useState(1);
   const [parsedTrades, setParsedTrades] = useState<Trade[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>();
   const router = useRouter();
   const [newAccountName, setNewAccountName] = useState<string>("");
+  const { brokers } = useBrokers();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -574,10 +576,23 @@ export function CsvImport() {
     const existingTradesStr = localStorage.getItem('tradingJournalTrades');
     const existingTrades = existingTradesStr ? JSON.parse(existingTradesStr) : {};
 
+    // Find the selected account
+    const account = accounts.find(acc => acc.id === selectedAccount);
+    
+    // Find associated broker if any
+    const associatedBroker = brokers.find(b => b.accountId === selectedAccount);
+    const importSource = associatedBroker 
+      ? `${associatedBroker.name} (${platform})`
+      : platform;
+
     // Add new trades
     const updatedTrades = {
       ...existingTrades,
-      ...Object.fromEntries(parsedTrades.map(trade => [trade.id, trade]))
+      ...Object.fromEntries(parsedTrades.map(trade => [trade.id, {
+        ...trade,
+        importSource,
+        importDate: new Date().toISOString()
+      }]))
     };
 
     // Save to localStorage
@@ -586,9 +601,12 @@ export function CsvImport() {
     // Reset form and close dialog
     setPlatform(undefined);
     setSelectedFile(undefined);
-    setSelectedAccount("new-account");
+    setSelectedAccountId("new-account");
     setParsedTrades([]);
     setStep(1);
+
+    // Update selected account
+    toggleAccount(selectedAccount);
 
     // Redirect to trades page
     router.push("/trades");
@@ -616,23 +634,20 @@ export function CsvImport() {
     // Reset form and close dialog
     setPlatform(undefined);
     setSelectedFile(undefined);
-    setSelectedAccount("new-account");
+    setSelectedAccountId("new-account");
     setParsedTrades([]);
     setStep(1);
   };
 
   return (
     <Dialog>
-      <div className="flex gap-2">
-        <DialogTrigger asChild>
-          <Button>
-            <Upload className="mr-2 h-4 w-4" />
-            Import Trades
-          </Button>
-        </DialogTrigger>
-      </div>
-
-      <DialogContent className="sm:max-w-[800px]">
+      <DialogTrigger asChild>
+        <Button id="csv-import-button" variant="outline">
+          <Upload className="mr-2 h-4 w-4" />
+          Import
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
         <DialogHeader>
           <DialogTitle>Import Trades</DialogTitle>
           <DialogDescription>
@@ -663,7 +678,7 @@ export function CsvImport() {
 
             <div className="space-y-2">
               <h4 className="font-medium">Select Account</h4>
-              <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+              <Select value={selectedAccount} onValueChange={setSelectedAccountId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select an account..." />
                 </SelectTrigger>
@@ -696,7 +711,7 @@ export function CsvImport() {
                     onClick={() => {
                       if (newAccountName.trim()) {
                         const newAccount = createAccount(newAccountName);
-                        setSelectedAccount(newAccount.id);
+                        setSelectedAccountId(newAccount.id);
                         setNewAccountName("");
                       }
                     }}

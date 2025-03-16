@@ -1,10 +1,22 @@
 'use server'
+// This file is currently disabled as it requires Cloudflare D1 database
+// which may not be available in all environments
+
+/*
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { headers } from 'next/headers'
+import { D1Database } from '@cloudflare/workers-types'
+
+// Define the CloudflareEnv interface
+interface CloudflareEnv {
+  env: {
+    DB: D1Database;
+  }
+}
 
 // 增加计数并记录访问
 export async function incrementAndLog() {
-  const cf = await getCloudflareContext()
+  const cf = await getCloudflareContext() as CloudflareEnv
   const headersList = await headers()
 
   const { results: countResults } = await cf.env.DB.prepare(
@@ -30,7 +42,7 @@ export async function incrementAndLog() {
 
 // 获取当前计数和最近访问
 export async function getStats() {
-  const cf = await getCloudflareContext()
+  const cf = await getCloudflareContext() as CloudflareEnv
   const { results: count } = await cf.env.DB.prepare('SELECT value FROM counters WHERE name = ?')
     .bind('page_views')
     .all()
@@ -43,4 +55,20 @@ export async function getStats() {
     count: count[0]?.value || 0,
     recentAccess: logs
   } as { count: number; recentAccess: { accessed_at: string }[] }
+}
+*/
+
+// Dummy implementations that return mock data
+export async function incrementAndLog() {
+  return {
+    count: 0,
+    recentAccess: []
+  };
+}
+
+export async function getStats() {
+  return {
+    count: 0,
+    recentAccess: []
+  };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Filter } from "lucide-react";
 import { Trade } from "@/types/trade";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { ACCOUNT_SELECTION_CHANGE } from "@/components/accounts/AccountFilter";
 import { DayTradesDialog } from "./DayTradesDialog";
 import { SimpleDayDialog } from "./SimpleDayDialog";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function TradeCalendar() {
   const [trades, setTrades] = useState<Record<string, Trade>>({});
@@ -23,32 +24,23 @@ export function TradeCalendar() {
   
   // Load trades
   useEffect(() => {
-    console.log("Loading trades from localStorage");
     const storedTrades = localStorage.getItem('tradingJournalTrades');
     if (storedTrades) {
       try {
         const parsedTrades = JSON.parse(storedTrades);
-        console.log("Trades loaded:", Object.keys(parsedTrades).length);
         setTrades(parsedTrades);
       } catch (error) {
         console.error("Error parsing trades from localStorage:", error);
       }
-    } else {
-      console.log("No trades found in localStorage");
     }
   }, []);
   
-  // Replace the current useEffect for listening to account changes with this one
+  // Listen for account selection changes
   useEffect(() => {
     const handleSelectionChange = () => {
       // Force re-render when account selection changes
       setForceUpdate(prev => prev + 1);
-      
-      // Also get the latest selected accounts directly from localStorage
-      const storedAccounts = localStorage.getItem('tradingJournalSelectedAccounts');
-      if (storedAccounts) {
-        console.log("Calendar detected account change:", storedAccounts);
-      }
+      console.log("Account selection changed! Selected accounts:", selectedAccounts);
     };
     
     // Add both event listener and storage change listener for redundancy
@@ -56,8 +48,19 @@ export function TradeCalendar() {
     window.addEventListener('storage', (e) => {
       if (e.key === 'tradingJournalSelectedAccounts') {
         handleSelectionChange();
+        
+        // Also log the direct value from localStorage
+        try {
+          const storedAccounts = localStorage.getItem('tradingJournalSelectedAccounts');
+          console.log("Storage event - stored accounts:", storedAccounts);
+        } catch (err) {
+          console.error("Error reading from localStorage:", err);
+        }
       }
     });
+    
+    // Log on initial mount
+    console.log("Initial selected accounts:", selectedAccounts);
     
     return () => {
       window.removeEventListener(ACCOUNT_SELECTION_CHANGE, handleSelectionChange);
@@ -67,21 +70,27 @@ export function TradeCalendar() {
         }
       });
     };
-  }, []);
+  }, [selectedAccounts]);
   
-  // Track dialog state changes
-  useEffect(() => {
-    console.log("Dialog state updated:", dialogOpen, selectedDate?.toDateString());
-  }, [dialogOpen, selectedDate]);
-  
-  // Helper to filter trades by selected accounts
+  // Alert message
+  const alertMessage = "No accounts selected. No trades will be shown. Use the account filter to select specific accounts.";
+
+  // Update the helper function to ensure it's properly memoized with all dependencies
   const getFilteredTrades = useCallback(() => {
     const tradesArray = Object.values(trades);
-    if (!selectedAccounts.length) return tradesArray;
+    console.log("getFilteredTrades called, selectedAccounts:", selectedAccounts);
     
-    return tradesArray.filter(trade => 
+    // When no accounts are selected, don't show any trades
+    if (!selectedAccounts.length) {
+      console.log("No accounts selected, returning empty array");
+      return [];
+    }
+    
+    const filtered = tradesArray.filter(trade => 
       selectedAccounts.includes(trade.accountId)
     );
+    console.log(`Filtered ${tradesArray.length} trades down to ${filtered.length} trades`);
+    return filtered;
   }, [trades, selectedAccounts, forceUpdate]);
   
   // Navigation methods
@@ -149,7 +158,10 @@ export function TradeCalendar() {
   
   // Get trades for a specific date
   const getTradesForDate = useCallback((date: Date) => {
-    return getFilteredTrades().filter(trade => {
+    const filteredTrades = getFilteredTrades();
+    console.log(`Getting trades for ${date.toDateString()}, working with ${filteredTrades.length} filtered trades`);
+    
+    const dateTrades = filteredTrades.filter(trade => {
       try {
         const tradeDate = parseISO(trade.exitDate || trade.entryDate);
         return (
@@ -162,6 +174,12 @@ export function TradeCalendar() {
         return false;
       }
     });
+    
+    if (dateTrades.length > 0) {
+      console.log(`Found ${dateTrades.length} trades for ${date.toDateString()}`);
+    }
+    
+    return dateTrades;
   }, [getFilteredTrades]);
   
   // Calculate P&L for a specific date
@@ -174,20 +192,20 @@ export function TradeCalendar() {
 
   // Handle day click
   const handleDayClick = (date: Date) => {
-    console.log("===== DAY CLICKED =====");
-    console.log("Date clicked:", date.toDateString());
     setSelectedDate(date);
+    
+    // Don't even try to look for trades if no accounts are selected
+    if (selectedAccounts.length === 0) {
+      setDialogOpen(false);
+      return;
+    }
     
     // Only open dialog if there are trades for this day
     const tradesForDay = getTradesForDate(date);
-    console.log("Trades for selected date:", tradesForDay.length);
-    console.log("Trade IDs:", tradesForDay.map(t => t.id));
     
     if (tradesForDay.length > 0) {
-      console.log("Opening dialog with", tradesForDay.length, "trades");
       setDialogOpen(true);
     } else {
-      console.log("No trades for this date, not opening dialog");
       setDialogOpen(false);
     }
   };
@@ -197,133 +215,124 @@ export function TradeCalendar() {
     month: 'long', 
     year: 'numeric' 
   });
-
-  // If no accounts are selected, we should show an empty state
-  if (selectedAccounts.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-muted-foreground" />
-              <CardTitle>Trading Calendar</CardTitle>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="text-center py-10">
-          <p className="text-muted-foreground">No accounts selected. Please select at least one account to view trades.</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  
+  // Before rendering, log the current state
+  console.log("RENDER: Calendar with", selectedAccounts.length, "selected accounts");
   
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle>{monthYearDisplay}</CardTitle>
-          <div className="flex space-x-2">
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CalendarIcon className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Trading Calendar</CardTitle>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {selectedAccounts.length === 0 && (
+          <Alert>
+            <Filter className="h-4 w-4" />
+            <AlertDescription>
+              {alertMessage}
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <Button 
-              variant="outline" 
-              size="icon" 
+              variant="outline"
+              size="icon"
               onClick={goToPreviousMonth}
-              aria-label="Previous Month"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
+            <span className="font-medium">{monthYearDisplay}</span>
             <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={goToCurrentMonth}
-              aria-label="Current Month"
-            >
-              Today
-            </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
+              variant="outline"
+              size="icon"
               onClick={goToNextMonth}
-              aria-label="Next Month"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-7 gap-px bg-muted text-center">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="py-2 font-medium">
-                {day}
-              </div>
-            ))}
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={goToCurrentMonth}>Today</Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                console.log("DEBUG button pressed");
+                console.log("Selected accounts:", selectedAccounts);
+                console.log("Filtered trades:", getFilteredTrades().length);
+                const allTrades = Object.values(trades);
+                console.log("All trades:", allTrades.length);
+                
+                // Check if the account IDs in trades match any selected accounts
+                const accountsInTrades = Array.from(new Set(allTrades.map(t => t.accountId)));
+                console.log("Account IDs in trades:", accountsInTrades);
+                console.log("Overlap with selected:", accountsInTrades.filter(id => selectedAccounts.includes(id)));
+              }}
+            >
+              Debug
+            </Button>
           </div>
-          <div className="grid grid-cols-7 gap-px bg-muted">
-            {calendarDays.map(({ date, isCurrentMonth }, index) => {
-              const trades = getTradesForDate(date);
-              const pnl = getPnLForDate(date);
-              const isSelected = selectedDate && 
-                date.getFullYear() === selectedDate.getFullYear() &&
-                date.getMonth() === selectedDate.getMonth() &&
-                date.getDate() === selectedDate.getDate();
-              
-              return (
-                <button
-                  key={index}
-                  onClick={() => handleDayClick(date)}
-                  className={`min-h-[100px] bg-background p-2 text-left transition-colors hover:bg-accent ${
-                    !isCurrentMonth && 'text-muted-foreground'
-                  } ${isSelected && 'ring-2 ring-ring'}`}
-                >
-                  <span className="text-sm">{date.getDate()}</span>
-                  {trades.length > 0 && (
-                    <div className="mt-1">
-                      <span className={`text-xs font-medium ${
-                        pnl >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {formatCurrency(pnl)}
-                      </span>
-                      <span className="text-xs text-muted-foreground ml-1">
-                        ({trades.length} trade{trades.length !== 1 ? 's' : ''})
-                      </span>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Testing button to open dialog */}
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h3 className="text-lg font-medium">
-            Selected Date: {selectedDate ? selectedDate.toDateString() : "None"}
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            {selectedDayTrades.length} trades for this date
-          </p>
         </div>
-        <Button
-          onClick={() => {
-            console.log("Test button clicked");
-            setDialogOpen(true);
-          }}
-        >
-          Test Open Dialog
-        </Button>
-      </div>
-
-      {/* Use the simple dialog */}
-      <SimpleDayDialog 
-        date={selectedDate}
-        trades={selectedDayTrades}
-        isOpen={dialogOpen}
-        onClose={() => {
-          console.log("Dialog closed");
-          setDialogOpen(false);
-        }}
-      />
-    </div>
+        
+        {/* Calendar Grid */}
+        <div className="grid grid-cols-7 gap-px bg-muted text-center">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="py-2 font-medium">
+              {day}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-px bg-muted">
+          {calendarDays.map(({ date, isCurrentMonth }, index) => {
+            // Only get trades and calculate PnL if accounts are selected
+            const trades = selectedAccounts.length > 0 ? getTradesForDate(date) : [];
+            const pnl = selectedAccounts.length > 0 ? getPnLForDate(date) : 0;
+            const isSelected = selectedDate && 
+              date.getFullYear() === selectedDate.getFullYear() &&
+              date.getMonth() === selectedDate.getMonth() &&
+              date.getDate() === selectedDate.getDate();
+            
+            return (
+              <button
+                key={index}
+                onClick={() => handleDayClick(date)}
+                className={`min-h-[100px] bg-background p-2 text-left transition-colors hover:bg-accent ${
+                  !isCurrentMonth && 'text-muted-foreground'
+                } ${isSelected && 'ring-2 ring-ring'}`}
+              >
+                <span className="text-sm">{date.getDate()}</span>
+                {selectedAccounts.length > 0 && trades.length > 0 && (
+                  <div className="mt-1">
+                    <span className={`text-xs font-medium ${
+                      pnl >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {formatCurrency(pnl)}
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-1">
+                      ({trades.length} trade{trades.length !== 1 ? 's' : ''})
+                    </span>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </CardContent>
+      
+      {/* Day trades dialog - only show if accounts are selected */}
+      {selectedDate && selectedAccounts.length > 0 && (
+        <DayTradesDialog
+          isOpen={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+          date={selectedDate}
+          trades={selectedDayTrades}
+        />
+      )}
+    </Card>
   );
 } 

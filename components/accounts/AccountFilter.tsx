@@ -43,7 +43,6 @@ export function AccountFilter() {
     
     // Determine new selection state
     const newSelection = allSelected ? [] : allAccountIds;
-    console.log("Setting all accounts selection to:", newSelection);
     
     // Update localStorage directly
     localStorage.setItem('tradingJournalSelectedAccounts', JSON.stringify(newSelection));
@@ -52,9 +51,6 @@ export function AccountFilter() {
     window.dispatchEvent(new CustomEvent(ACCOUNT_SELECTION_CHANGE, { 
       detail: { selectedAccounts: newSelection }
     }));
-    
-    // Force a page reload to ensure all components see the changes
-    window.location.reload();
   };
 
   // Handle individual account toggle
@@ -67,15 +63,10 @@ export function AccountFilter() {
       ? selectedAccounts.filter(id => id !== accountId)
       : [...selectedAccounts, accountId];
     
-    console.log("Account toggled, new selection:", newSelection);
-    
     // Dispatch event
     window.dispatchEvent(new CustomEvent(ACCOUNT_SELECTION_CHANGE, {
       detail: { selectedAccounts: newSelection }
     }));
-    
-    // Force a page reload to ensure all components see the changes
-    window.location.reload();
   };
 
   return (

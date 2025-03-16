@@ -2,14 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Edit, Eye, ArrowUp, ArrowDown, Clock, Tag } from "lucide-react";
-import { Trade } from "@/components/trades/TradeList";
+import { Edit, Eye, ArrowUp, ArrowDown, Clock, Tag, Filter } from "lucide-react";
+import { Trade } from "@/types/trade";
 import { formatCurrency } from "@/lib/utils";
+import { useAccounts } from "@/hooks/useAccounts";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function RecentTrades() {
   const router = useRouter();
   const [expandedTrade, setExpandedTrade] = useState<string | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const { selectedAccounts } = useAccounts();
   
   // Load trades from localStorage
   useEffect(() => {
@@ -24,8 +27,18 @@ export function RecentTrades() {
     }
   }, []);
   
+  // Listen for account selection changes
+  useEffect(() => {
+    // Force re-render when selected accounts change
+  }, [selectedAccounts]);
+  
+  // Filter trades by selected accounts
+  const filteredTrades = selectedAccounts.length > 0
+    ? trades.filter(trade => selectedAccounts.includes(trade.accountId))
+    : trades; // Show all trades if no accounts are selected
+  
   // Get recent trades (most recent 5)
-  const recentTrades = [...trades]
+  const recentTrades = [...filteredTrades]
     .sort((a, b) => new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime())
     .slice(0, 5);
   
@@ -53,6 +66,15 @@ export function RecentTrades() {
   
   return (
     <div className="space-y-3">
+      {selectedAccounts.length === 0 && (
+        <Alert>
+          <Filter className="h-4 w-4" />
+          <AlertDescription>
+            No accounts selected. Showing all trades. Use the account filter to select specific accounts.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {recentTrades.length > 0 ? (
         <>
           <div className="space-y-3">

@@ -562,7 +562,7 @@ export default function AnalyticsPage() {
                         <Bar 
                           dataKey="pnl" 
                           name="P&L" 
-                          fill={(entry) => entry.pnl >= 0 ? PROFIT_COLOR : LOSS_COLOR}
+                          fill={PROFIT_COLOR}
                         >
                           {symbolPerformance.slice(0, 10).map((entry, index) => (
                             <Cell 

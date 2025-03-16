@@ -5,7 +5,9 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { Trade } from "@/types/trade";
 import { DataTable } from "@/components/ui/data-table";
 import { columns } from "./columns";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/providers/toast-provider";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Filter } from "lucide-react";
 
 interface TradeListProps {
   trades?: Trade[];
@@ -18,10 +20,10 @@ export function TradeList({ trades = [], onTradesDeleted }: TradeListProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedTradeIds, setSelectedTradeIds] = useState<string[]>([]);
   
-  // Filter trades by selected accounts
-  const filteredTrades = trades.filter(trade => 
-    selectedAccounts.includes(trade.accountId)
-  );
+  // Filter trades by selected accounts, or show all if none selected
+  const filteredTrades = selectedAccounts.length > 0
+    ? trades.filter(trade => selectedAccounts.includes(trade.accountId))
+    : trades; // Show all trades if no accounts are selected
 
   // Track row selection
   const onRowSelectionChange = (rowIds: string[]) => {
@@ -92,12 +94,23 @@ export function TradeList({ trades = [], onTradesDeleted }: TradeListProps) {
 
   return (
     <div className="space-y-4">
+      {selectedAccounts.length === 0 && (
+        <Alert>
+          <Filter className="h-4 w-4" />
+          <AlertDescription>
+            No accounts selected. Showing all trades. Use the account filter to select specific accounts.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <DataTable
         columns={columns}
         data={filteredTrades}
         enableRowSelection
+        onRowSelectionChange={onRowSelectionChange}
         onDeleteRows={handleDeleteTrades}
       />
+      
       {selectedTradeIds.length > 0 && (
         <div className="text-xs text-right text-muted-foreground">
           {selectedTradeIds.length} {selectedTradeIds.length === 1 ? 'trade' : 'trades'} selected. 

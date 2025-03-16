@@ -3,8 +3,11 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Trade } from "@/components/trades/TradeList";
+import { Trade } from "@/types/trade";
 import { formatCurrency } from "@/lib/utils";
+import { useAccounts } from "@/hooks/useAccounts";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Filter } from "lucide-react";
 
 interface CalendarDay {
   date: Date;
@@ -27,6 +30,7 @@ export function MiniCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const { selectedAccounts } = useAccounts();
   
   // Load trades from localStorage
   useEffect(() => {
@@ -40,6 +44,17 @@ export function MiniCalendar() {
       setTrades([]);
     }
   }, []);
+  
+  // Listen for account selection changes
+  useEffect(() => {
+    // Force re-render when selected accounts change
+    // This is needed because the calendar data depends on filteredTrades
+  }, [selectedAccounts]);
+  
+  // Filter trades by selected accounts
+  const filteredTrades = selectedAccounts.length > 0
+    ? trades.filter(trade => selectedAccounts.includes(trade.accountId))
+    : trades; // Show all trades if no accounts are selected
   
   // Navigation methods
   const goToPreviousMonth = () => {
@@ -91,7 +106,7 @@ export function MiniCalendar() {
       const date = new Date(year, month - 1, dayNumber);
       
       // Find trades for this day
-      const dayTrades = trades.filter(trade => {
+      const dayTrades = filteredTrades.filter(trade => {
         const tradeDate = new Date(trade.entryDate);
         return (
           tradeDate.getDate() === date.getDate() &&
@@ -127,7 +142,7 @@ export function MiniCalendar() {
         date.getFullYear() === today.getFullYear();
       
       // Find trades for this day
-      const dayTrades = trades.filter(trade => {
+      const dayTrades = filteredTrades.filter(trade => {
         const tradeDate = new Date(trade.entryDate);
         return (
           tradeDate.getDate() === date.getDate() &&
@@ -163,7 +178,7 @@ export function MiniCalendar() {
       const date = new Date(year, month + 1, i + 1);
       
       // Find trades for this day
-      const dayTrades = trades.filter(trade => {
+      const dayTrades = filteredTrades.filter(trade => {
         const tradeDate = new Date(trade.entryDate);
         return (
           tradeDate.getDate() === date.getDate() &&
@@ -223,7 +238,7 @@ export function MiniCalendar() {
   
   // Selected day's trades
   const selectedDayTrades = selectedDate
-    ? trades.filter(trade => {
+    ? filteredTrades.filter(trade => {
         const tradeDate = new Date(trade.entryDate);
         return (
           tradeDate.getDate() === selectedDate.getDate() &&
@@ -248,6 +263,15 @@ export function MiniCalendar() {
   
   return (
     <div className="space-y-3">
+      {selectedAccounts.length === 0 && (
+        <Alert>
+          <Filter className="h-4 w-4" />
+          <AlertDescription>
+            No accounts selected. Showing all trades. Use the account filter to select specific accounts.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {/* Calendar Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">

@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  output: process.env.NETLIFY ? 'export' : 'standalone',
+  output: 'standalone',
   images: {
     unoptimized: true,
     remotePatterns: [
@@ -21,7 +21,8 @@ const nextConfig = {
     };
     return config;
   },
-  trailingSlash: true,
+  trailingSlash: false,
+  basePath: '',
 };
 
 module.exports = nextConfig; 

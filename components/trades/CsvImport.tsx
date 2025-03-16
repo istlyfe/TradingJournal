@@ -149,7 +149,7 @@ const SUPPORTED_PLATFORMS = [
   "Webull"
 ] as const;
 
-export function CsvImport() {
+export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: TradeData[]) => void }) {
   const [platform, setPlatform] = useState<string>();
   const [selectedFile, setSelectedFile] = useState<File>();
   const { accounts, createAccount, toggleAccount } = useAccounts();
@@ -598,18 +598,23 @@ export function CsvImport() {
     // Save to localStorage
     localStorage.setItem('tradingJournalTrades', JSON.stringify(updatedTrades));
 
-    // Reset form and close dialog
-    setPlatform(undefined);
-    setSelectedFile(undefined);
-    setSelectedAccountId("new-account");
-    setParsedTrades([]);
-    setStep(1);
+    // Call the onImportSuccess callback if provided
+    if (onImportSuccess) {
+      onImportSuccess(parsedTrades as unknown as TradeData[]);
+    } else {
+      // Reset form and close dialog
+      setPlatform(undefined);
+      setSelectedFile(undefined);
+      setSelectedAccountId("new-account");
+      setParsedTrades([]);
+      setStep(1);
 
-    // Update selected account
-    toggleAccount(selectedAccount);
+      // Update selected account
+      toggleAccount(selectedAccount);
 
-    // Redirect to trades page
-    router.push("/trades");
+      // Redirect to trades page
+      router.push("/trades");
+    }
   };
 
   const handleDeleteImport = () => {

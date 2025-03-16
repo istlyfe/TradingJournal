@@ -20,7 +20,7 @@ export function RecentTrades() {
     if (storedTrades) {
       // Convert from Record<string, Trade> to Trade[]
       const tradesRecord = JSON.parse(storedTrades);
-      const tradesArray = Object.values(tradesRecord);
+      const tradesArray = Object.values(tradesRecord) as Trade[];
       setTrades(tradesArray);
     } else {
       setTrades([]);
@@ -34,7 +34,7 @@ export function RecentTrades() {
   
   // Filter trades by selected accounts
   const filteredTrades = selectedAccounts.length > 0
-    ? trades.filter(trade => selectedAccounts.includes(trade.accountId))
+    ? trades.filter(trade => trade.accountId && selectedAccounts.includes(trade.accountId))
     : trades; // Show all trades if no accounts are selected
   
   // Get recent trades (most recent 5)

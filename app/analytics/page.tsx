@@ -76,7 +76,7 @@ export default function AnalyticsPage() {
       const tradeDate = parseISO(trade.exitDate || trade.entryDate);
       const dateInRange = isAfter(tradeDate, startDate) && isBefore(tradeDate, now);
       // Only include trades from selected accounts
-      const accountSelected = selectedAccounts.includes(trade.accountId);
+      const accountSelected = trade.accountId ? selectedAccounts.includes(trade.accountId) : false;
       return dateInRange && accountSelected && trade.exitDate; // Only include closed trades
     });
   };

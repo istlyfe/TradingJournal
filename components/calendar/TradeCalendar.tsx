@@ -87,7 +87,7 @@ export function TradeCalendar() {
     }
     
     const filtered = tradesArray.filter(trade => 
-      selectedAccounts.includes(trade.accountId)
+      trade.accountId && selectedAccounts.includes(trade.accountId)
     );
     console.log(`Filtered ${tradesArray.length} trades down to ${filtered.length} trades`);
     return filtered;
@@ -269,7 +269,7 @@ export function TradeCalendar() {
                 console.log("All trades:", allTrades.length);
                 
                 // Check if the account IDs in trades match any selected accounts
-                const accountsInTrades = Array.from(new Set(allTrades.map(t => t.accountId)));
+                const accountsInTrades = Array.from(new Set(allTrades.map(t => t.accountId).filter(Boolean))) as string[];
                 console.log("Account IDs in trades:", accountsInTrades);
                 console.log("Overlap with selected:", accountsInTrades.filter(id => selectedAccounts.includes(id)));
               }}

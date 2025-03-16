@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "buildCommand": "npm cache clean --force && npm install && npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs"
+} 

@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "framework": "nextjs",
-  "buildCommand": "node fix-paths-vercel.js && node fix-imports.js && npm run build",
-  "installCommand": "npm install"
+  "buildCommand": "npm install --save-dev typescript @types/react @types/node && npm install papaparse axios @radix-ui/react-tabs --force && next build --no-lint",
+  "outputDirectory": ".next",
+  "devCommand": "next dev",
+  "framework": "nextjs"
 } 

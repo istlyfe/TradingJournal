@@ -1,0 +1,19 @@
+[build]
+  command = "npm run netlify-build"
+  publish = ".next"
+
+[build.environment]
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+  NODE_VERSION = "18"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[[edge_functions]]
+  path = "/*"
+  function = "rewrite"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200 

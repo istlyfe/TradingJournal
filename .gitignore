@@ -39,3 +39,5 @@ next-env.d.ts
 
 # CSV files
 *.csv 
+# Local Netlify folder
+.netlify

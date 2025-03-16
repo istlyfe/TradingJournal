@@ -2,6 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  output: 'standalone',
+  images: {
+    unoptimized: true,
+  },
   webpack: (config) => {
     // Ensure external packages are properly resolved
     config.resolve.fallback = {

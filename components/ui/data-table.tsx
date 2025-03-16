@@ -9,6 +9,8 @@ import {
   getSortedRowModel,
   RowSelectionState,
   getFilteredRowModel,
+  OnChangeFn,
+  Updater,
 } from "@tanstack/react-table";
 import { useState } from "react";
 import {
@@ -53,17 +55,22 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const handleRowSelectionChange = (newRowSelection: RowSelectionState) => {
+  const handleRowSelectionChange = (updaterOrValue: Updater<RowSelectionState>) => {
+    // Handle both function updaters and direct value assignments
+    const newRowSelection = typeof updaterOrValue === 'function' 
+      ? updaterOrValue(rowSelection)
+      : updaterOrValue;
+    
     setRowSelection(newRowSelection);
     
-    // Call the parent's onRowSelectionChange callback if provided
     if (onRowSelectionChange) {
-      const selectedIds = Object.keys(newRowSelection).filter(
-        id => newRowSelection[id]
-      ).map(id => {
-        const row = data.find((r, idx) => String(idx) === id);
-        return row ? getRowId(row) : '';
-      }).filter(Boolean);
+      // Extract selected row IDs
+      const selectedIds = Object.keys(newRowSelection)
+        .filter(key => newRowSelection[key])
+        .map(index => {
+          const row = data[parseInt(index, 10)];
+          return getRowId(row);
+        });
       
       onRowSelectionChange(selectedIds);
     }

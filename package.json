@@ -6,8 +6,10 @@
     "dev": "next dev",
     "prebuild": "npm install papaparse axios --force",
     "build": "next build",
+    "netlify-build": "NETLIFY=true npm run build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "netlify-deploy": "netlify deploy --prod"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^0.5.11",
@@ -44,21 +46,29 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "embla-carousel-react": "8.5.2",
     "framer-motion": "^12.5.0",
+    "input-otp": "1.4.2",
     "lucide-react": "^0.293.0",
     "next": "^14.0.0",
+    "next-themes": "0.4.6",
     "papaparse": "5.5.2",
     "postcss": "^8.4.31",
     "react": "^18.2.0",
     "react-day-picker": "^9.6.2",
     "react-dom": "^18.2.0",
+    "react-hook-form": "7.54.2",
+    "react-resizable-panels": "2.1.7",
     "recharts": "^2.15.1",
+    "sonner": "2.0.1",
     "tailwind-merge": "^1.14.0",
     "tailwindcss": "^3.3.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "vaul": "1.1.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250313.0",
+    "@netlify/plugin-nextjs": "5.10.0",
     "@types/node": "^20.0.0",
     "@types/papaparse": "^5.3.15",
     "@types/react": "^18.2.0",

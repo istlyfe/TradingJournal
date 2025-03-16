@@ -3,8 +3,7 @@
   publish = ".next"
 
 [build.environment]
-  NETLIFY_NEXT_PLUGIN_SKIP = "true"
-  NODE_VERSION = "18"
+  NETLIFY_NEXT_PLUGIN_SKIP = "false"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
@@ -15,5 +14,13 @@
 
 [[redirects]]
   from = "/*"
+  to = "/_ipx"
+  status = 200
+  force = true
+  conditions = {Referer = ["/_next/image*"]}
+
+[[redirects]]
+  from = "/*"
   to = "/index.html"
-  status = 200 
+  status = 200
+  force = false 

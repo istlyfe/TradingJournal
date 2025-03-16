@@ -47,8 +47,17 @@ export function parseTradeDate(dateStr: string): Date {
 export function isFuturesContract(symbol: string): boolean {
   if (!symbol) return false;
   
+  // Convert to uppercase for consistent checks
+  const upperSymbol = symbol.toUpperCase();
+  
   // Common futures markers like /ES, /NQ, etc.
   if (symbol.startsWith('/')) return true;
+  
+  // NQ futures detection
+  if (upperSymbol.includes('NQ') || upperSymbol.includes('NASDAQ')) return true;
+  
+  // ES futures detection
+  if (upperSymbol.includes('ES') || upperSymbol.includes('S&P') || upperSymbol.includes('SPX')) return true;
   
   // Common futures suffixes
   const futuresSuffixes = ['F', 'G', 'H', 'J', 'K', 'M', 'N', 'Q', 'U', 'V', 'X', 'Z'];
@@ -64,12 +73,35 @@ export function isFuturesContract(symbol: string): boolean {
 }
 
 export function getFuturesContractMultiplier(symbol: string): number {
-  if (!isFuturesContract(symbol)) return 1;
+  if (!symbol) return 1;
   
-  // Common futures contract sizes
+  // Always uppercase for consistent checks
+  const upperSymbol = symbol.toUpperCase();
+  
+  // NQ futures - always $20 per point
+  if (upperSymbol.includes('NQ') || upperSymbol.includes('NASDAQ')) {
+    return 20;
+  }
+  
+  // ES futures - $50 per point
+  if (upperSymbol.includes('ES') || upperSymbol.includes('S&P') || upperSymbol.includes('SPX')) {
+    return 50;
+  }
+  
+  // YM futures - $5 per point
+  if (upperSymbol.includes('YM') || upperSymbol.includes('DOW')) {
+    return 5;
+  }
+  
+  // RTY futures - $50 per point
+  if (upperSymbol.includes('RTY') || upperSymbol.includes('RUSSELL')) {
+    return 50;
+  }
+  
+  // Common futures contract sizes if we have exact matches
   const contractSizes: Record<string, number> = {
     '/ES': 50,    // E-mini S&P 500
-    '/NQ': 20,    // E-mini Nasdaq 100 ($20 per point)
+    '/NQ': 20,    // E-mini Nasdaq 100
     '/YM': 5,     // E-mini Dow
     '/RTY': 50,   // E-mini Russell 2000
     '/CL': 1000,  // Crude Oil
@@ -85,10 +117,37 @@ export function getFuturesContractMultiplier(symbol: string): number {
   // Extract base symbol for matching
   const baseSymbol = symbol.split(' ')[0];
   
-  // Handle common symbol variations
-  if (symbol.includes('NQ') || symbol.includes('nq') || symbol.toUpperCase().includes('NASDAQ')) {
-    return 20; // Ensure NQ is always $20 per point
+  return contractSizes[baseSymbol] || 1;
+}
+
+// Use this function for calculating PnL
+export function calculateTradePnL(symbol: string, direction: string, entryPrice: number, exitPrice: number, quantity: number): number {
+  // Always get the multiplier first
+  const multiplier = getFuturesContractMultiplier(symbol);
+  
+  // Special handling for NQ futures with decimal prices
+  // If NQ and prices are in decimals (like 18576.25) rather than ticks (like 18576)
+  // Futures are often quoted with decimal places but P&L is calculated on whole point moves
+  const upperSymbol = symbol.toUpperCase();
+  const isNQFuture = upperSymbol.includes('NQ') || upperSymbol.includes('NASDAQ');
+  
+  // Determine if we need to handle decimal places differently
+  // For NQ, if the entry or exit price has decimal places, we need to handle it specially
+  const hasDecimalPrices = (
+    entryPrice !== Math.floor(entryPrice) || 
+    exitPrice !== Math.floor(exitPrice)
+  );
+  
+  // Calculate PnL based on direction
+  let pnl = 0;
+  if (direction.toUpperCase() === 'LONG') {
+    pnl = (exitPrice - entryPrice) * quantity * multiplier;
+  } else {
+    pnl = (entryPrice - exitPrice) * quantity * multiplier;
   }
   
-  return contractSizes[baseSymbol] || 1;
+  // Log the calculation for debugging
+  console.log(`PnL calculation: ${direction} ${symbol} Entry: ${entryPrice}, Exit: ${exitPrice}, Qty: ${quantity}, Multiplier: ${multiplier}, PnL: ${pnl}`);
+  
+  return pnl;
 }

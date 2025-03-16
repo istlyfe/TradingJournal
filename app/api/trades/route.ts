@@ -1,12 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
-import { D1Database } from "@cloudflare/workers-types";
-
-interface Env {
-  DB: D1Database;
-}
+import { calculatePnL } from "@/lib/tradeService";
 
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
+
+// Mock data
+const mockTrades = [
+  {
+    id: '1',
+    user_id: 'user_1',
+    symbol: 'NQ',
+    trade_type: 'LONG',
+    entry_price: 18500,
+    exit_price: 18520,
+    entry_date: '2023-06-01T10:00:00Z',
+    exit_date: '2023-06-01T11:00:00Z',
+    quantity: 1,
+    fees: 0,
+    profit_loss: 400, // 20 point difference * $20 multiplier
+    profit_loss_percentage: 0.11,
+    status: 'CLOSED',
+    strategy_id: null,
+    risk_reward_ratio: null
+  },
+  {
+    id: '2',
+    user_id: 'user_1',
+    symbol: 'ES',
+    trade_type: 'SHORT',
+    entry_price: 5200,
+    exit_price: 5180,
+    entry_date: '2023-06-02T10:00:00Z',
+    exit_date: '2023-06-02T11:00:00Z',
+    quantity: 1,
+    fees: 0,
+    profit_loss: 1000, // 20 point difference * $50 multiplier
+    profit_loss_percentage: 0.38,
+    status: 'CLOSED',
+    strategy_id: null,
+    risk_reward_ratio: null
+  }
+];
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,92 +59,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 });
     }
 
-    // @ts-ignore - D1 is available in the environment
-    const db = process.env.DB as D1Database;
-    
-    // Build query with filters
-    let query = "SELECT * FROM trades WHERE user_id = ?";
-    const params: any[] = [userId];
+    // Filter mock trades
+    let filteredTrades = mockTrades.filter(trade => trade.user_id === userId);
     
     if (status) {
-      query += " AND status = ?";
-      params.push(status);
+      filteredTrades = filteredTrades.filter(trade => trade.status === status);
     }
     
     if (symbol) {
-      query += " AND symbol LIKE ?";
-      params.push(`%${symbol}%`);
+      filteredTrades = filteredTrades.filter(trade => trade.symbol.includes(symbol));
     }
     
     if (tradeType) {
-      query += " AND trade_type = ?";
-      params.push(tradeType);
+      filteredTrades = filteredTrades.filter(trade => trade.trade_type === tradeType);
     }
     
     if (startDate) {
-      query += " AND entry_date >= ?";
-      params.push(startDate);
+      filteredTrades = filteredTrades.filter(trade => new Date(trade.entry_date) >= new Date(startDate));
     }
     
     if (endDate) {
-      query += " AND entry_date <= ?";
-      params.push(endDate);
+      filteredTrades = filteredTrades.filter(trade => new Date(trade.entry_date) <= new Date(endDate));
     }
     
-    // Add pagination
-    query += " ORDER BY entry_date DESC LIMIT ? OFFSET ?";
-    params.push(limit, offset);
-    
-    // Execute query
-    const trades = await db
-      .prepare(query)
-      .bind(...params)
-      .all();
-    
-    // Get total count for pagination
-    let countQuery = "SELECT COUNT(*) as total FROM trades WHERE user_id = ?";
-    const countParams: any[] = [userId];
-    
-    if (status) {
-      countQuery += " AND status = ?";
-      countParams.push(status);
-    }
-    
-    if (symbol) {
-      countQuery += " AND symbol LIKE ?";
-      countParams.push(`%${symbol}%`);
-    }
-    
-    if (tradeType) {
-      countQuery += " AND trade_type = ?";
-      countParams.push(tradeType);
-    }
-    
-    if (startDate) {
-      countQuery += " AND entry_date >= ?";
-      countParams.push(startDate);
-    }
-    
-    if (endDate) {
-      countQuery += " AND entry_date <= ?";
-      countParams.push(endDate);
-    }
-    
-    const countResult = await db
-      .prepare(countQuery)
-      .bind(...countParams)
-      .first();
-    
-    const total = countResult?.total as number || 0;
-    const totalPages = Math.ceil(total / limit);
+    // Paginate results
+    const paginatedTrades = filteredTrades.slice(offset, offset + limit);
     
     return NextResponse.json({
-      trades: trades.results,
+      trades: paginatedTrades,
       pagination: {
-        total,
+        total: filteredTrades.length,
         page,
         limit,
-        totalPages
+        totalPages: Math.ceil(filteredTrades.length / limit)
       }
     });
   } catch (error) {
@@ -151,61 +132,49 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // @ts-ignore - D1 is available in the environment
-    const db = process.env.DB as D1Database;
-    
-    // Insert trade
-    const result = await db
-      .prepare(`
-        INSERT INTO trades (
-          user_id, symbol, trade_type, entry_price, exit_price, 
-          entry_date, exit_date, quantity, fees, profit_loss, 
-          profit_loss_percentage, status, strategy_id, risk_reward_ratio, 
-          risk_amount, stop_loss, take_profit
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      .bind(
-        userId,
+    // Calculate actual P&L using our trade service
+    let actualPnL = profitLoss;
+    if (exitPrice && status === 'CLOSED') {
+      actualPnL = calculatePnL(
         symbol,
-        tradeType,
-        entryPrice,
-        exitPrice,
-        entryDate,
-        exitDate,
-        quantity,
-        fees || 0,
-        profitLoss,
-        profitLossPercentage,
-        status,
-        strategyId,
-        riskRewardRatio,
-        riskAmount,
-        stopLoss,
-        takeProfit
-      )
-      .run();
-    
-    const tradeId = result.meta.last_row_id;
-    
-    // Add notes if provided
-    if (notes && notes.length > 0) {
-      await db
-        .prepare("INSERT INTO trade_notes (trade_id, note) VALUES (?, ?)")
-        .bind(tradeId, notes)
-        .run();
+        tradeType as any,
+        parseFloat(entryPrice),
+        parseFloat(exitPrice),
+        parseFloat(quantity)
+      );
     }
     
-    // Add tags if provided
-    if (tags && tags.length > 0) {
-      for (const tagId of tags) {
-        await db
-          .prepare("INSERT INTO trade_tags (trade_id, tag_id) VALUES (?, ?)")
-          .bind(tradeId, tagId)
-          .run();
-      }
-    }
+    // Create a new trade
+    const tradeId = `trade_${Date.now()}`;
+    const newTrade = {
+      id: tradeId,
+      user_id: userId,
+      symbol,
+      trade_type: tradeType,
+      entry_price: entryPrice,
+      exit_price: exitPrice,
+      entry_date: entryDate,
+      exit_date: exitDate,
+      quantity,
+      fees: fees || 0,
+      profit_loss: actualPnL,
+      profit_loss_percentage: profitLossPercentage,
+      status,
+      strategy_id: strategyId,
+      risk_reward_ratio: riskRewardRatio,
+      risk_amount: riskAmount,
+      stop_loss: stopLoss,
+      take_profit: takeProfit
+    };
     
-    return NextResponse.json({ success: true, id: tradeId });
+    // Add to mock data
+    mockTrades.push(newTrade as any);
+    
+    return NextResponse.json({ 
+      success: true, 
+      tradeId,
+      trade: newTrade
+    });
   } catch (error) {
     console.error("Error creating trade:", error);
     return NextResponse.json({ error: "Failed to create trade" }, { status: 500 });

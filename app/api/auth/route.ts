@@ -13,24 +13,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 });
     }
 
-    // @ts-ignore - D1 is available in the environment
-    const db = process.env.DB as any;
+    // Mock user data for development
+    const user = {
+      id: userId,
+      username: "demo_user",
+      email: "demo@example.com",
+      first_name: "Demo",
+      last_name: "User",
+      created_at: new Date().toISOString()
+    };
     
-    // Get user data
-    const user = await db
-      .prepare("SELECT id, username, email, first_name, last_name, created_at FROM users WHERE id = ?")
-      .bind(userId)
-      .first();
-    
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-    
-    // Get user settings
-    const settings = await db
-      .prepare("SELECT * FROM settings WHERE user_id = ?")
-      .bind(userId)
-      .first();
+    // Mock settings
+    const settings = {
+      theme: "light",
+      notifications_enabled: true,
+      default_account: "main"
+    };
     
     // Format user data for response
     const userData = {
@@ -72,45 +70,9 @@ export async function POST(request: NextRequest) {
         required: "username, email, password" 
       }, { status: 400 });
     }
-
-    // @ts-ignore - D1 is available in the environment
-    const db = process.env.DB as any;
     
-    // Check if user already exists
-    const existingUser = await db
-      .prepare("SELECT id FROM users WHERE username = ? OR email = ?")
-      .bind(username, email)
-      .first();
-    
-    if (existingUser) {
-      return NextResponse.json({ error: "Username or email already exists" }, { status: 409 });
-    }
-    
-    // Hash password - simplified for build
-    const passwordHash = password; // In production, this would use bcrypt
-    
-    // Insert user
-    const result = await db
-      .prepare(`
-        INSERT INTO users (username, email, password_hash, first_name, last_name)
-        VALUES (?, ?, ?, ?, ?)
-      `)
-      .bind(username, email, passwordHash, firstName || null, lastName || null)
-      .run();
-    
-    const userId = result.meta.last_row_id;
-    
-    // Create default settings for user
-    await db
-      .prepare("INSERT INTO settings (user_id) VALUES (?)")
-      .bind(userId)
-      .run();
-    
-    // Create default watchlist
-    await db
-      .prepare("INSERT INTO watchlists (user_id, name, description) VALUES (?, ?, ?)")
-      .bind(userId, "Default Watchlist", "Your default watchlist")
-      .run();
+    // Mock user creation - in production this would use a real database
+    const userId = `user_${Date.now()}`;
     
     return NextResponse.json({ 
       success: true, 
@@ -140,43 +102,26 @@ export async function PUT(request: NextRequest) {
         required: "username, password" 
       }, { status: 400 });
     }
-
-    // @ts-ignore - D1 is available in the environment
-    const db = process.env.DB as any;
     
-    // Find user
-    const user = await db
-      .prepare("SELECT id, username, email, password_hash, first_name, last_name FROM users WHERE username = ?")
-      .bind(username)
-      .first();
+    // Mock user authentication - in production this would verify against a database
+    const userId = `user_${Date.now()}`;
     
-    if (!user) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
-    }
-    
-    // Verify password - simplified for build
-    const passwordMatch = password === user.password_hash; // In production, this would use bcrypt
-    
-    if (!passwordMatch) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
-    }
-    
-    // Generate JWT token - simplified for build
-    const token = `token_${user.id}_${Date.now()}`; // In production, this would use jsonwebtoken
+    // Generate JWT token - simplified for demo
+    const token = `token_${userId}_${Date.now()}`;
     
     return NextResponse.json({ 
       success: true, 
       token,
       user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name
+        id: userId,
+        username: username,
+        email: `${username}@example.com`,
+        firstName: "Demo",
+        lastName: "User"
       }
     });
   } catch (error) {
     console.error("Error logging in:", error);
     return NextResponse.json({ error: "Failed to log in" }, { status: 500 });
   }
-}
+} 

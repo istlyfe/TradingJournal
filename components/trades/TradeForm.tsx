@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { isFuturesContract, getFuturesContractMultiplier } from "@/lib/utils";
+import { calculatePnL, getContractMultiplier } from "@/lib/tradeService";
 
 export default function TradeForm() {
   const router = useRouter();
@@ -30,24 +30,31 @@ export default function TradeForm() {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // Calculate P&L
+    // Parse values
+    const symbol = formData.symbol.trim();
+    const direction = formData.direction as "LONG" | "SHORT";
     const entryPrice = parseFloat(formData.entryPrice);
     const exitPrice = parseFloat(formData.exitPrice);
     const quantity = parseFloat(formData.quantity);
     
-    // Get contract multiplier for futures
-    const symbol = formData.symbol.trim();
-    const multiplier = isFuturesContract(symbol) ? getFuturesContractMultiplier(symbol) : 1;
+    // Calculate P&L using our trade service
+    const pnl = calculatePnL(symbol, direction, entryPrice, exitPrice, quantity);
     
-    let pnl = 0;
-    if (formData.direction === "LONG") {
-      pnl = (exitPrice - entryPrice) * quantity * multiplier;
-    } else {
-      pnl = (entryPrice - exitPrice) * quantity * multiplier;
-    }
-
+    // Get multiplier for logging
+    const multiplier = getContractMultiplier(symbol);
+    
     // In a real app, you would save this to your database
-    console.log("Trade submitted:", { ...formData, pnl, multiplier });
+    console.log("Trade submitted:", { 
+      ...formData, 
+      pnl, 
+      multiplier,
+      calculation: {
+        formula: direction === "LONG" ? 
+          `(${exitPrice} - ${entryPrice}) * ${quantity} * ${multiplier}` : 
+          `(${entryPrice} - ${exitPrice}) * ${quantity} * ${multiplier}`,
+        result: pnl
+      }
+    });
     
     // For demo purposes, let's assume it was successful
     alert(`Trade saved successfully! P&L: $${pnl.toFixed(2)}`);

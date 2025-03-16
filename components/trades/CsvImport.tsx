@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { parse } from "papaparse";
-import { parseTradeDate, formatDateTime, formatCurrency, getFuturesContractMultiplier, isFuturesContract } from "@/lib/utils";
+import { parseTradeDate, formatDateTime, formatCurrency } from "@/lib/utils";
+import { calculatePnL, getContractMultiplier, isFutures } from "@/lib/tradeService";
 import { Account } from "@/components/accounts/AccountManager";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -220,14 +221,15 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
             const csvRows = results.data as any[];
             
             // Only use filled orders
-            const filledOrders = csvRows.filter(order => order.Status === " Filled");
+            const filledOrders = csvRows.filter(order => order.Status === " Filled" || order.Status === "Filled");
             
             // First few orders for debugging
             console.log("FIRST 5 ORDERS:", filledOrders.slice(0, 5).map(order => ({
               id: order.orderId,
               action: order["B/S"],
               symbol: order.Contract,
-              price: order["Avg Fill Price"],
+              price: order["avgPrice"] || order["Avg Fill Price"],
+              quantity: order["filledQty"] || order["Filled Qty"],
               timestamp: order.Timestamp
             })));
             
@@ -260,10 +262,19 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
               
               orders.forEach(order => {
                 try {
-                  const qty = parseFloat(order["Filled Qty"]?.replace(/[,]/g, "") || "0");
-                  const price = parseFloat(order["Avg Fill Price"]?.replace(/[$,]/g, "") || "0");
-                  const isBuy = order["B/S"].trim() === " Buy" || order["B/S"].trim() === "Buy";
-                  const multiplier = getCorrectMultiplier(symbol);
+                  // Handle different column formats
+                  const filledQtyField = order["Filled Qty"] !== undefined ? "Filled Qty" : "filledQty";
+                  const priceField = order["Avg Fill Price"] !== undefined ? "Avg Fill Price" : "avgPrice";
+                  const actionField = order["B/S"] !== undefined ? "B/S" : "Side";
+                  
+                  let qty = parseFloat(String(order[filledQtyField]).replace(/[,]/g, "") || "0");
+                  let price = parseFloat(String(order[priceField]).replace(/[$,]/g, "") || "0");
+                  
+                  // Handle action field variations
+                  const action = String(order[actionField]).trim();
+                  const isBuy = action === " Buy" || action === "Buy" || action === "BUY" || action === "B";
+                  
+                  const multiplier = getContractMultiplier(symbol);
                   console.log(`Processing ${symbol} with multiplier: ${multiplier}`);
                   const timestamp = new Date(order.Timestamp);
                   
@@ -280,7 +291,7 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
                     if (shortPositionSize > 0) {
                       const closeQty = Math.min(shortPositionSize, qty);
                       const avgShortEntry = shortEntryTotal / shortPositionSize;
-                      const pnl = (avgShortEntry - price) * closeQty * multiplier;
+                      const pnl = calculatePnL(symbol, "SHORT", avgShortEntry, price, closeQty);
                       
                       console.log(`Closing SHORT position: ${closeQty} @ ${price}, entry was ${avgShortEntry}, PNL: ${pnl}`);
                       
@@ -329,7 +340,7 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
                     if (longPositionSize > 0) {
                       const closeQty = Math.min(longPositionSize, qty);
                       const avgLongEntry = longEntryTotal / longPositionSize;
-                      const pnl = (price - avgLongEntry) * closeQty * multiplier;
+                      const pnl = calculatePnL(symbol, "LONG", avgLongEntry, price, closeQty);
                       
                       console.log(`Closing LONG position: ${closeQty} @ ${price}, entry was ${avgLongEntry}, PNL: ${pnl}`);
                       
@@ -523,7 +534,7 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
                   }
 
                   // Calculate contract multiplier for futures
-                  const contractMultiplier = isFuturesContract(symbol) ? getCorrectMultiplier(symbol) : 1;
+                  const contractMultiplier = isFutures(symbol) ? getContractMultiplier(symbol) : 1;
 
                   validTrades.push({
                     id: crypto.randomUUID(),
@@ -645,14 +656,6 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
     setStep(1);
   };
 
-  const getCorrectMultiplier = (symbol: string): number => {
-    // Special handling for NQ futures
-    if (symbol.includes('NQ') || symbol.includes('nq') || symbol.toUpperCase().includes('NASDAQ')) {
-      return 20; // E-mini Nasdaq 100 is $20 per point
-    }
-    return getFuturesContractMultiplier(symbol);
-  };
-
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -661,7 +664,7 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
           Import
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
         <DialogHeader>
           <DialogTitle>Import Trades</DialogTitle>
           <DialogDescription>
@@ -788,21 +791,22 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
             <div className="flex justify-between items-center">
               <h4 className="font-medium">Preview Trades</h4>
               <p className="text-sm text-muted-foreground">
-                Found {parsedTrades.length} trades
+                Found {parsedTrades.length} trade{parsedTrades.length !== 1 ? 's' : ''}
               </p>
             </div>
 
-            <div className="border rounded-lg overflow-hidden">
-              <table className="w-full">
+            <div className="border rounded-lg overflow-x-auto">
+              <table className="w-full table-fixed">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="text-left p-2 font-medium">Symbol</th>
-                    <th className="text-left p-2 font-medium">Direction</th>
-                    <th className="text-right p-2 font-medium">Entry Date</th>
-                    <th className="text-right p-2 font-medium">Entry Price</th>
-                    <th className="text-right p-2 font-medium">Exit Date</th>
-                    <th className="text-right p-2 font-medium">Exit Price</th>
-                    <th className="text-right p-2 font-medium">P&L</th>
+                    <th className="text-left p-2 font-medium w-[15%]">Symbol</th>
+                    <th className="text-left p-2 font-medium w-[10%]">Direction</th>
+                    <th className="text-right p-2 font-medium w-[15%]">Entry Date</th>
+                    <th className="text-right p-2 font-medium w-[12%]">Entry Price</th>
+                    <th className="text-right p-2 font-medium w-[15%]">Exit Date</th>
+                    <th className="text-right p-2 font-medium w-[12%]">Exit Price</th>
+                    <th className="text-right p-2 font-medium w-[8%]">Qty</th>
+                    <th className="text-right p-2 font-medium w-[13%]">P&L</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -818,14 +822,15 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
                           {trade.direction}
                         </span>
                       </td>
-                      <td className="p-2 text-right">{formatDateTime(trade.entryDate)}</td>
-                      <td className="p-2 text-right">{formatCurrency(trade.entryPrice)}</td>
-                      <td className="p-2 text-right">{trade.exitDate ? formatDateTime(trade.exitDate) : "-"}</td>
-                      <td className="p-2 text-right">{trade.exitPrice ? formatCurrency(trade.exitPrice) : "-"}</td>
-                      <td className={`p-2 text-right font-medium ${
+                      <td className="p-2 text-right whitespace-nowrap">{formatDateTime(trade.entryDate)}</td>
+                      <td className="p-2 text-right whitespace-nowrap">{formatCurrency(trade.entryPrice)}</td>
+                      <td className="p-2 text-right whitespace-nowrap">{trade.exitDate ? formatDateTime(trade.exitDate) : "-"}</td>
+                      <td className="p-2 text-right whitespace-nowrap">{trade.exitPrice ? formatCurrency(trade.exitPrice) : "-"}</td>
+                      <td className="p-2 text-right whitespace-nowrap">{trade.quantity}</td>
+                      <td className={`p-2 text-right font-medium whitespace-nowrap ${
                         (trade.pnl || 0) >= 0 ? "text-green-600" : "text-red-600"
                       }`}>
-                        {trade.pnl ? formatCurrency(trade.pnl) : "-"}
+                        {trade.pnl ? formatCurrency(trade.pnl) : calculateAndFormatPnL(trade)}
                       </td>
                     </tr>
                   ))}
@@ -833,7 +838,15 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
               </table>
               {parsedTrades.length > 5 && (
                 <div className="p-2 text-center text-sm text-muted-foreground border-t">
-                  ... and {parsedTrades.length - 5} more trades
+                  ... and {parsedTrades.length - 5} more trade{parsedTrades.length - 5 !== 1 ? 's' : ''}
+                  <Button 
+                    variant="link" 
+                    className="p-0 ml-2 text-sm" 
+                    onClick={() => window.alert(`All ${parsedTrades.length} trades will be imported when you click the Import button.`)}
+                  >
+                    <Info className="h-4 w-4 inline-block mr-1" />
+                    See details
+                  </Button>
                 </div>
               )}
             </div>
@@ -849,7 +862,9 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
                 onClick={handleImport}
                 disabled={parsedTrades.length === 0}
               >
-                Import {parsedTrades.length} Trades
+                Import {parsedTrades.length} Trade{parsedTrades.length !== 1 ? 's' : ''} 
+                {selectedAccount !== "new-account" && accounts.find(a => a.id === selectedAccount) && 
+                  ` to ${accounts.find(a => a.id === selectedAccount)?.name}`}
               </Button>
             </div>
           </div>
@@ -857,4 +872,19 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
       </DialogContent>
     </Dialog>
   );
+}
+
+function calculateAndFormatPnL(trade: any): string {
+  if (!trade.exitPrice) return "-";
+  
+  // Calculate PnL if not already calculated
+  const pnl = calculatePnL(
+    trade.symbol,
+    trade.direction,
+    trade.entryPrice,
+    trade.exitPrice,
+    trade.quantity
+  );
+  
+  return formatCurrency(pnl);
 } 

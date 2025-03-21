@@ -56,9 +56,9 @@ export function Sidebar() {
     >
       {/* Toggle Button */}
       <Button
-        variant="ghost"
+        variant="default"
         size="icon"
-        className="absolute -right-4 top-4 z-20 rounded-full border bg-background"
+        className="absolute -right-4 top-20 z-20 rounded-full border-0 shadow-md bg-black text-white h-8 w-8 p-0 hover:bg-black/90"
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
         {isCollapsed ? (

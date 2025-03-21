@@ -96,10 +96,29 @@ export function AccountManager() {
               value={newAccountDescription}
               onChange={(e) => setNewAccountDescription(e.target.value)}
             />
-            <Button onClick={addAccount} className="w-full">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Account
-            </Button>
+            <div 
+              onClick={addAccount} 
+              className="w-full flex items-center justify-center gap-4 p-10 mt-4 text-xl font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md cursor-pointer"
+            >
+              <Plus className="w-10 h-10" />
+              <span>Add Account</span>
+            </div>
+          </div>
+          
+          {/* Account list header */}
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-muted-foreground">Your Accounts</h3>
+            <div 
+              onClick={() => {
+                setNewAccountName("");
+                setNewAccountDescription("");
+                const inputElement = document.querySelector('input[placeholder="Account Name"]') as HTMLInputElement;
+                if (inputElement) inputElement.focus();
+              }} 
+              className="rounded-md h-[40px] w-[40px] border-2 border-primary flex items-center justify-center shadow-sm hover:bg-accent cursor-pointer"
+            >
+              <Plus className="h-6 w-6" />
+            </div>
           </div>
 
           {/* Account list */}

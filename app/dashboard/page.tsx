@@ -1,15 +1,27 @@
-import { Metadata } from "next";
+"use client";
+
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardMetrics } from "@/components/dashboard/DashboardMetrics";
 import { RecentTrades } from "@/components/dashboard/RecentTrades";
-import { MiniCalendar } from "@/components/dashboard/MiniCalendar";
-
-export const metadata: Metadata = {
-  title: "Dashboard | Trading Journal",
-  description: "Your trading performance at a glance",
-};
+import { TradeCalendar } from "@/components/calendar/TradeCalendar";
+import { TradeType } from "@/types/trade";
 
 export default function DashboardPage() {
+  const [trades, setTrades] = useState<Record<string, TradeType>>({});
+
+  // Load trades from localStorage
+  useEffect(() => {
+    try {
+      const storedTrades = localStorage.getItem('tradingJournalTrades');
+      if (storedTrades) {
+        setTrades(JSON.parse(storedTrades));
+      }
+    } catch (error) {
+      console.error("Error loading trades:", error);
+    }
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -50,8 +62,8 @@ export default function DashboardPage() {
               Your trading activity by date
             </CardDescription>
           </CardHeader>
-          <CardContent className="pb-6">
-            <MiniCalendar />
+          <CardContent>
+            <TradeCalendar />
           </CardContent>
         </Card>
       </div>

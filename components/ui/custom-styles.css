@@ -1,0 +1,92 @@
+/* Custom overrides with extremely high specificity */
+html body [role="checkbox"][data-radix-checkbox-root],
+html body [role="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  border-width: 1px !important;
+  border-radius: 3px !important;
+  background-color: transparent !important;
+}
+
+html body [role="checkbox"] svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+html body [role="checkbox"][data-state="checked"] {
+  background-color: hsl(263.4, 70%, 50.4%) !important;
+}
+
+/* Fix table checkboxes specifically */
+html body table [role="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+}
+
+/* Custom trade table checkbox overrides */
+.trade-table-checkbox,
+.trade-table-checkbox[role="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  border-width: 1px !important;
+  border-radius: 3px !important;
+  background-color: transparent !important;
+}
+
+.trade-table-checkbox svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+.trade-table-checkbox[data-state="checked"] {
+  background-color: hsl(263.4, 70%, 50.4%) !important;
+}
+
+/* Target any element in the page that appears as a checkbox */
+*[role="checkbox"],
+*[data-state="checked"],
+*[data-state="unchecked"],
+*[type="checkbox"],
+.trade-table-checkbox,
+.checkbox {
+  aspect-ratio: 1/1 !important;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  border-width: 1px !important;
+  border-radius: 2px !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Fix the SVG icon inside checkboxes */
+*[role="checkbox"] svg,
+.trade-table-checkbox svg {
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
+  max-width: 12px !important;
+  max-height: 12px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Fix the trade table checkboxes specifically */
+.trade-table-checkbox {
+  box-shadow: none !important;
+  transform: none !important;
+} 

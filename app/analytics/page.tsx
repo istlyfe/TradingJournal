@@ -23,6 +23,9 @@ import {
   Pie,
   Cell
 } from "recharts";
+import AdvancedMetrics from "@/components/analytics/AdvancedMetrics";
+import TradePatternAnalysis from "@/components/analytics/TradePatternAnalysis";
+import RiskManagementAnalysis from "@/components/analytics/RiskManagementAnalysis";
 
 // Chart colors
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -65,600 +68,552 @@ export default function AnalyticsPage() {
       case 'all':
       default:
         startDate = new Date(0); // Beginning of time
-    }
-
-    // If no accounts are selected, return empty array
-    if (selectedAccounts.length === 0) {
-      return [];
+        break;
     }
 
     return Object.values(trades).filter(trade => {
-      const tradeDate = parseISO(trade.exitDate || trade.entryDate);
-      const dateInRange = isAfter(tradeDate, startDate) && isBefore(tradeDate, now);
-      // Only include trades from selected accounts
-      const accountSelected = trade.accountId ? selectedAccounts.includes(trade.accountId) : false;
-      return dateInRange && accountSelected && trade.exitDate; // Only include closed trades
+      const tradeDate = parseISO(trade.entryDate);
+      const isAfterStartDate = isAfter(tradeDate, startDate);
+      const isBeforeNow = isBefore(tradeDate, now);
+      const isSelectedAccount = selectedAccounts.length === 0 || selectedAccounts.includes(trade.accountId || 'default');
+      
+      return isAfterStartDate && isBeforeNow && isSelectedAccount;
     });
   };
-
-  const filteredTrades = getFilteredTrades();
   
-  // Calculate performance metrics
+  // Calculate key metrics
   const calculateMetrics = () => {
-    const totalTrades = filteredTrades.length;
-    const winningTrades = filteredTrades.filter(t => (t.pnl || 0) > 0);
-    const losingTrades = filteredTrades.filter(t => (t.pnl || 0) < 0);
+    const filteredTrades = getFilteredTrades();
     
-    const winRate = totalTrades > 0 
-      ? (winningTrades.length / totalTrades) * 100 
-      : 0;
-
-    const avgWin = winningTrades.length > 0
-      ? winningTrades.reduce((sum, t) => sum + (t.pnl || 0), 0) / winningTrades.length
-      : 0;
-
-    const avgLoss = losingTrades.length > 0
-      ? Math.abs(losingTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)) / losingTrades.length
-      : 0;
-
-    const totalPnL = filteredTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const grossProfit = winningTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + (t.pnl || 0), 0));
+    // Total P&L
+    const totalPnl = filteredTrades.reduce((total, trade) => total + (trade.pnl || 0), 0);
     
-    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+    // Win rate
+    const winningTrades = filteredTrades.filter(trade => (trade.pnl || 0) > 0);
+    const winRate = filteredTrades.length > 0 ? (winningTrades.length / filteredTrades.length) * 100 : 0;
+    
+    // Average trade P&L
+    const avgTradePnl = filteredTrades.length > 0 ? totalPnl / filteredTrades.length : 0;
+    
+    // Largest win and loss
+    const largestWin = filteredTrades.length > 0 ? 
+      Math.max(...filteredTrades.map(trade => trade.pnl || 0)) : 0;
+    const largestLoss = filteredTrades.length > 0 ? 
+      Math.min(...filteredTrades.map(trade => trade.pnl || 0)) : 0;
     
     // Average trade duration
-    const tradesWithDuration = filteredTrades.filter(trade => trade.exitDate && trade.entryDate);
-    const avgDuration = tradesWithDuration.length > 0 
-      ? tradesWithDuration.reduce((sum, trade) => {
-          const duration = differenceInMinutes(parseISO(trade.exitDate!), parseISO(trade.entryDate));
-          return sum + duration;
-        }, 0) / tradesWithDuration.length
-      : 0;
+    const avgTradeDuration = filteredTrades.reduce((total, trade) => {
+      if (trade.entryDate && trade.exitDate) {
+        const entryDate = parseISO(trade.entryDate);
+        const exitDate = parseISO(trade.exitDate);
+        return total + differenceInMinutes(exitDate, entryDate);
+      }
+      return total;
+    }, 0) / (filteredTrades.length || 1);
+    
+    // Long vs Short performance
+    const longTrades = filteredTrades.filter(trade => trade.direction === 'LONG');
+    const shortTrades = filteredTrades.filter(trade => trade.direction === 'SHORT');
+    
+    const longPnl = longTrades.reduce((total, trade) => total + (trade.pnl || 0), 0);
+    const shortPnl = shortTrades.reduce((total, trade) => total + (trade.pnl || 0), 0);
+    
+    const longWinRate = longTrades.length > 0 ? 
+      (longTrades.filter(trade => (trade.pnl || 0) > 0).length / longTrades.length) * 100 : 0;
+    const shortWinRate = shortTrades.length > 0 ? 
+      (shortTrades.filter(trade => (trade.pnl || 0) > 0).length / shortTrades.length) * 100 : 0;
     
     return {
-      totalTrades,
-      winningTrades: winningTrades.length,
-      losingTrades: losingTrades.length,
+      totalPnl,
       winRate,
-      avgWin,
-      avgLoss,
-      profitFactor,
-      avgDuration,
-      totalPnL,
-      grossProfit,
-      grossLoss
+      avgTradePnl,
+      largestWin,
+      largestLoss,
+      avgTradeDuration,
+      longPnl,
+      shortPnl,
+      longWinRate,
+      shortWinRate,
+      tradeCount: filteredTrades.length,
+      winningTradeCount: winningTrades.length,
+      losingTradeCount: filteredTrades.length - winningTrades.length
     };
   };
   
-  const metrics = calculateMetrics();
-  
-  // Format duration helper
+  // Format minutes into readable duration
   const formatDuration = (minutes: number): string => {
     if (minutes < 60) {
       return `${Math.round(minutes)}m`;
-    } else if (minutes < 1440) {
-      return `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m`;
-    } else {
-      const days = Math.floor(minutes / 1440);
-      const hours = Math.floor((minutes % 1440) / 60);
-      return `${days}d ${hours}h`;
     }
+    
+    if (minutes < 60 * 24) {
+      const hours = Math.floor(minutes / 60);
+      const mins = Math.round(minutes % 60);
+      return `${hours}h ${mins}m`;
+    }
+    
+    const days = Math.floor(minutes / (60 * 24));
+    const hours = Math.floor((minutes % (60 * 24)) / 60);
+    return `${days}d ${hours}h`;
   };
-
-  // Calculate cumulative P&L data for chart
+  
+  // Get data for cumulative P&L chart
   const getCumulativePnLData = () => {
-    if (filteredTrades.length === 0) return [];
+    const filteredTrades = getFilteredTrades();
     
     // Sort trades by date
-    const sortedTrades = [...filteredTrades].sort((a, b) => {
-      const dateA = parseISO(a.exitDate || a.entryDate);
-      const dateB = parseISO(b.exitDate || b.entryDate);
-      return dateA.getTime() - dateB.getTime();
-    });
+    const sortedTrades = [...filteredTrades].sort(
+      (a, b) => parseISO(a.entryDate).getTime() - parseISO(b.entryDate).getTime()
+    );
     
+    // Calculate cumulative P&L
     let cumulativePnL = 0;
     return sortedTrades.map(trade => {
       cumulativePnL += (trade.pnl || 0);
       return {
-        date: format(parseISO(trade.exitDate || trade.entryDate), 'MMM dd'),
+        date: format(parseISO(trade.entryDate), 'MMM dd'),
         pnl: cumulativePnL
       };
     });
   };
-
-  // Calculate P&L distribution data for chart
+  
+  // Get data for P&L distribution chart
   const getPnLDistributionData = () => {
-    const ranges = [
-      { name: '<-$500', min: -Infinity, max: -500 },
-      { name: '-$500 to -$100', min: -500, max: -100 },
-      { name: '-$100 to -$1', min: -100, max: -1 },
-      { name: '$0 to $100', min: 0, max: 100 },
-      { name: '$100 to $500', min: 100, max: 500 },
-      { name: '>$500', min: 500, max: Infinity }
-    ];
+    const filteredTrades = getFilteredTrades();
     
-    const distribution = ranges.map(range => ({
-      name: range.name,
-      value: filteredTrades.filter(t => {
-        const pnl = t.pnl || 0;
-        return pnl > range.min && pnl <= range.max;
-      }).length
-    }));
-    
-    return distribution.filter(item => item.value > 0);
-  };
-
-  // Calculate performance by symbol
-  const getSymbolPerformance = () => {
-    const symbolMap: Record<string, { trades: number, pnl: number, winRate: number }> = {};
+    // Group P&L values into ranges
+    const pnlRanges: Record<string, number> = {};
     
     filteredTrades.forEach(trade => {
-      if (!symbolMap[trade.symbol]) {
-        symbolMap[trade.symbol] = { trades: 0, pnl: 0, winRate: 0 };
-      }
-      symbolMap[trade.symbol].trades += 1;
-      symbolMap[trade.symbol].pnl += (trade.pnl || 0);
+      const pnl = trade.pnl || 0;
+      let rangeKey;
+      
+      if (pnl < -1000) rangeKey = '< -$1000';
+      else if (pnl < -500) rangeKey = '-$1000 to -$500';
+      else if (pnl < -100) rangeKey = '-$500 to -$100';
+      else if (pnl < 0) rangeKey = '-$100 to $0';
+      else if (pnl === 0) rangeKey = '$0';
+      else if (pnl <= 100) rangeKey = '$0 to $100';
+      else if (pnl <= 500) rangeKey = '$100 to $500';
+      else if (pnl <= 1000) rangeKey = '$500 to $1000';
+      else rangeKey = '> $1000';
+      
+      pnlRanges[rangeKey] = (pnlRanges[rangeKey] || 0) + 1;
     });
     
-    // Calculate win rate for each symbol
-    Object.keys(symbolMap).forEach(symbol => {
-      const symbolTrades = filteredTrades.filter(t => t.symbol === symbol);
-      const wins = symbolTrades.filter(t => (t.pnl || 0) > 0).length;
-      symbolMap[symbol].winRate = symbolTrades.length > 0 
-        ? (wins / symbolTrades.length) * 100
-        : 0;
-    });
-    
-    // Convert to array and sort by P&L
-    return Object.entries(symbolMap)
-      .map(([symbol, data]) => ({ 
-        symbol,
-        trades: data.trades,
-        pnl: data.pnl,
-        winRate: data.winRate
-      }))
-      .sort((a, b) => b.pnl - a.pnl);
-  };
-
-  // Calculate performance by day of week
-  const getDayOfWeekPerformance = () => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayMap: Record<string, { trades: number, pnl: number }> = {};
-    
-    // Initialize all days
-    days.forEach(day => {
-      dayMap[day] = { trades: 0, pnl: 0 };
-    });
-    
-    filteredTrades.forEach(trade => {
-      const date = parseISO(trade.exitDate || trade.entryDate);
-      const day = days[date.getDay()];
-      dayMap[day].trades += 1;
-      dayMap[day].pnl += (trade.pnl || 0);
-    });
-    
-    // Convert to array for chart
-    return days.map(day => ({
-      name: day.substring(0, 3), // Abbreviate
-      pnl: dayMap[day].pnl,
-      trades: dayMap[day].trades
-    }));
-  };
-
-  // Calculate trade duration distribution
-  const getTradeDurationData = () => {
-    const durationRanges = [
-      { name: '<15m', min: 0, max: 15 },
-      { name: '15m-1h', min: 15, max: 60 },
-      { name: '1h-4h', min: 60, max: 240 },
-      { name: '4h-1d', min: 240, max: 1440 },
-      { name: '>1d', min: 1440, max: Infinity }
-    ];
-    
-    const tradesWithDuration = filteredTrades.filter(trade => trade.exitDate && trade.entryDate);
-    
-    const distribution = durationRanges.map(range => ({
-      name: range.name,
-      count: tradesWithDuration.filter(trade => {
-        const duration = differenceInMinutes(parseISO(trade.exitDate!), parseISO(trade.entryDate));
-        return duration >= range.min && duration < range.max;
-      }).length,
-      avgPnL: tradesWithDuration.filter(trade => {
-        const duration = differenceInMinutes(parseISO(trade.exitDate!), parseISO(trade.entryDate));
-        return duration >= range.min && duration < range.max;
-      }).reduce((sum, trade) => sum + (trade.pnl || 0), 0) / 
-      tradesWithDuration.filter(trade => {
-        const duration = differenceInMinutes(parseISO(trade.exitDate!), parseISO(trade.entryDate));
-        return duration >= range.min && duration < range.max;
-      }).length || 0
-    }));
-    
-    return distribution.filter(item => item.count > 0);
+    return Object.entries(pnlRanges).map(([range, count]) => ({ range, count }));
   };
   
+  // Get data for symbol performance chart
+  const getSymbolPerformance = () => {
+    const filteredTrades = getFilteredTrades();
+    
+    // Group trades by symbol
+    const symbolGroups: Record<string, { totalPnl: number, count: number }> = {};
+    
+    filteredTrades.forEach(trade => {
+      const symbol = trade.symbol;
+      if (!symbolGroups[symbol]) {
+        symbolGroups[symbol] = { totalPnl: 0, count: 0 };
+      }
+      
+      symbolGroups[symbol].totalPnl += (trade.pnl || 0);
+      symbolGroups[symbol].count += 1;
+    });
+    
+    // Convert to array and sort by total P&L
+    return Object.entries(symbolGroups)
+      .map(([symbol, data]) => ({
+        symbol,
+        pnl: data.totalPnl,
+        count: data.count,
+        avgPnl: data.totalPnl / data.count
+      }))
+      .sort((a, b) => b.pnl - a.pnl)
+      .slice(0, 10); // Top 10 symbols by P&L
+  };
+  
+  // Get data for day of week performance
+  const getDayOfWeekPerformance = () => {
+    const filteredTrades = getFilteredTrades();
+    
+    // Initialize days of week
+    const daysOfWeek = [
+      { day: 'Monday', dayNum: 1, pnl: 0, count: 0 },
+      { day: 'Tuesday', dayNum: 2, pnl: 0, count: 0 },
+      { day: 'Wednesday', dayNum: 3, pnl: 0, count: 0 },
+      { day: 'Thursday', dayNum: 4, pnl: 0, count: 0 },
+      { day: 'Friday', dayNum: 5, pnl: 0, count: 0 },
+      { day: 'Saturday', dayNum: 6, pnl: 0, count: 0 },
+      { day: 'Sunday', dayNum: 0, pnl: 0, count: 0 }
+    ];
+    
+    // Group trades by day of week
+    filteredTrades.forEach(trade => {
+      const tradeDate = parseISO(trade.entryDate);
+      const dayOfWeek = tradeDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      
+      daysOfWeek[dayOfWeek === 0 ? 6 : dayOfWeek - 1].pnl += (trade.pnl || 0);
+      daysOfWeek[dayOfWeek === 0 ? 6 : dayOfWeek - 1].count += 1;
+    });
+    
+    // Calculate average P&L per day
+    return daysOfWeek.map(day => ({
+      ...day,
+      avgPnl: day.count > 0 ? day.pnl / day.count : 0
+    }));
+  };
+  
+  // Get data for trade duration analysis
+  const getTradeDurationData = () => {
+    const filteredTrades = getFilteredTrades();
+    
+    // Group trades by duration
+    const durationGroups: Record<string, { totalPnl: number, count: number }> = {
+      '< 5m': { totalPnl: 0, count: 0 },
+      '5-15m': { totalPnl: 0, count: 0 },
+      '15-30m': { totalPnl: 0, count: 0 },
+      '30-60m': { totalPnl: 0, count: 0 },
+      '1-3h': { totalPnl: 0, count: 0 },
+      '3-8h': { totalPnl: 0, count: 0 },
+      '> 8h': { totalPnl: 0, count: 0 }
+    };
+    
+    filteredTrades.forEach(trade => {
+      if (trade.entryDate && trade.exitDate) {
+        const entryDate = parseISO(trade.entryDate);
+        const exitDate = parseISO(trade.exitDate);
+        const durationMinutes = differenceInMinutes(exitDate, entryDate);
+        
+        let durationKey;
+        if (durationMinutes < 5) durationKey = '< 5m';
+        else if (durationMinutes < 15) durationKey = '5-15m';
+        else if (durationMinutes < 30) durationKey = '15-30m';
+        else if (durationMinutes < 60) durationKey = '30-60m';
+        else if (durationMinutes < 180) durationKey = '1-3h';
+        else if (durationMinutes < 480) durationKey = '3-8h';
+        else durationKey = '> 8h';
+        
+        durationGroups[durationKey].totalPnl += (trade.pnl || 0);
+        durationGroups[durationKey].count += 1;
+      }
+    });
+    
+    // Convert to array and calculate average P&L
+    return Object.entries(durationGroups)
+      .map(([duration, data]) => ({
+        duration,
+        totalPnl: data.totalPnl,
+        count: data.count,
+        avgPnl: data.count > 0 ? data.totalPnl / data.count : 0
+      }));
+  };
+  
+  const metrics = calculateMetrics();
   const cumulativePnLData = getCumulativePnLData();
   const pnlDistributionData = getPnLDistributionData();
-  const symbolPerformance = getSymbolPerformance();
+  const symbolPerformanceData = getSymbolPerformance();
   const dayOfWeekData = getDayOfWeekPerformance();
   const tradeDurationData = getTradeDurationData();
   
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-[60vh]">Loading analytics...</div>;
-  }
-  
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-3xl font-bold">Analytics</h1>
-      
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-muted-foreground">Analyze your trading performance and identify patterns</p>
-        </div>
-        <div>
-          <select 
-            className="rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            value={timeframe}
-            onChange={(e) => setTimeframe(e.target.value)}
-          >
-            <option value="7d">Last 7 days</option>
-            <option value="30d">Last 30 days</option>
-            <option value="90d">Last 90 days</option>
-            <option value="1y">Last year</option>
-            <option value="all">All time</option>
-          </select>
-        </div>
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold">Analytics</h1>
+        <p className="text-muted-foreground">
+          Analyze your trading performance to identify patterns and improve results.
+        </p>
       </div>
       
-      {/* Performance Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
-            <div className="h-4 w-4 text-muted-foreground">
-              <PieChart className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics.winRate.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">
-              {metrics.winningTrades} wins / {metrics.losingTrades} losses
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Profit Factor</CardTitle>
-            <div className="h-4 w-4 text-muted-foreground">
-              <LineChart className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics.profitFactor === Infinity ? '∞' : metrics.profitFactor.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">
-              {formatCurrency(metrics.grossProfit)} / {formatCurrency(metrics.grossLoss)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Win</CardTitle>
-            <div className="h-4 w-4 text-muted-foreground">
-              <TrendingUp className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-500">{formatCurrency(metrics.avgWin)}</div>
-            <p className="text-xs text-muted-foreground">
-              From {metrics.winningTrades} winning trades
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Loss</CardTitle>
-            <div className="h-4 w-4 text-muted-foreground">
-              <TrendingDown className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-500">-{formatCurrency(metrics.avgLoss)}</div>
-            <p className="text-xs text-muted-foreground">
-              From {metrics.losingTrades} losing trades
-            </p>
-          </CardContent>
-        </Card>
+      <div className="flex justify-between items-center">
+        <Tabs value={timeframe} onValueChange={setTimeframe}>
+          <TabsList>
+            <TabsTrigger value="7d">7D</TabsTrigger>
+            <TabsTrigger value="30d">30D</TabsTrigger>
+            <TabsTrigger value="90d">90D</TabsTrigger>
+            <TabsTrigger value="1y">1Y</TabsTrigger>
+            <TabsTrigger value="all">All</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
       
-      {/* Average Duration and Total P&L */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Trade Duration</CardTitle>
-            <div className="h-4 w-4 text-muted-foreground">
-              <Clock className="h-4 w-4" />
-            </div>
+            <CardTitle className="text-sm font-medium">
+              Total P&L
+            </CardTitle>
+            {metrics.totalPnl >= 0 ? (
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            ) : (
+              <TrendingDown className="h-4 w-4 text-red-500" />
+            )}
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatDuration(metrics.avgDuration)}</div>
+            <div className={`text-2xl font-bold ${metrics.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              {formatCurrency(metrics.totalPnl)}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Based on {metrics.totalTrades} trades
+              {metrics.tradeCount} trades
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total P&L</CardTitle>
-            <div className="h-4 w-4 text-muted-foreground">
-              <BarChart3 className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${metrics.totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {formatCurrency(metrics.totalPnL)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Over the {timeframe === 'all' ? 'entire period' : `last ${timeframe}`}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-      
-      {/* Charts */}
-      <Tabs defaultValue="performance" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="symbols">Symbols</TabsTrigger>
-          <TabsTrigger value="time">Time Analysis</TabsTrigger>
-        </TabsList>
         
-        <TabsContent value="performance" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Cumulative P&L</CardTitle>
-                <CardDescription>
-                  Your profit and loss over time
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                {cumulativePnLData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsLineChart
-                      data={cumulativePnLData}
-                      margin={{ top: 5, right: 30, left: 20, bottom: 30 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis tickFormatter={(value) => `$${value}`} />
-                      <Tooltip formatter={(value) => [`$${value}`, 'P&L']} />
-                      <Line 
-                        type="monotone" 
-                        dataKey="pnl" 
-                        stroke={metrics.totalPnL >= 0 ? PROFIT_COLOR : LOSS_COLOR} 
-                        strokeWidth={2}
-                        dot={{ r: 1 }}
-                        activeDot={{ r: 5 }}
-                      />
-                    </RechartsLineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-muted-foreground">No data available</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>P&L Distribution</CardTitle>
-                <CardDescription>
-                  Distribution of trade profits and losses
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                {pnlDistributionData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsPieChart>
-                      <Pie
-                        data={pnlDistributionData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      >
-                        {pnlDistributionData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </RechartsPieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-muted-foreground">No data available</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Trade Durations</CardTitle>
-                <CardDescription>
-                  How long your trades last, and how they perform
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                {tradeDurationData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsBarChart
-                      data={tradeDurationData}
-                      margin={{ top: 5, right: 30, left: 20, bottom: 30 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis yAxisId="left" orientation="left" />
-                      <YAxis 
-                        yAxisId="right" 
-                        orientation="right" 
-                        tickFormatter={(value) => `$${value}`} 
-                      />
-                      <Tooltip formatter={(value, name) => {
-                        if (name === 'count') return [value, 'Number of Trades'];
-                        return [`$${value}`, 'Average P&L'];
-                      }} />
-                      <Legend />
-                      <Bar 
-                        dataKey="count" 
-                        name="Number of Trades" 
-                        fill="#8884d8" 
-                        yAxisId="left"
-                      />
-                      <Bar 
-                        dataKey="avgPnL" 
-                        name="Average P&L" 
-                        fill="#82ca9d" 
-                        yAxisId="right"
-                      />
-                    </RechartsBarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-muted-foreground">No data available</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Win Rate
+            </CardTitle>
+            <PieChart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {metrics.winRate.toFixed(1)}%
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {metrics.winningTradeCount} wins, {metrics.losingTradeCount} losses
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Average Trade P&L
+            </CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${metrics.avgTradePnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              {formatCurrency(metrics.avgTradePnl)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Per trade average
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Advanced Metrics Component */}
+      <AdvancedMetrics trades={trades} timeframe={timeframe} />
+
+      {/* Risk Management Analysis Component */}
+      <RiskManagementAnalysis trades={trades} timeframe={timeframe} />
+      
+      <Card className="col-span-full">
+        <CardHeader>
+          <CardTitle>Equity Curve</CardTitle>
+          <CardDescription>
+            Your trading account growth over time
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80">
+            {cumulativePnLData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsLineChart
+                  data={cumulativePnLData}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip
+                    formatter={(value) => [formatCurrency(Number(value)), "P&L"]}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="pnl" 
+                    name="Cumulative P&L" 
+                    stroke={PROFIT_COLOR}
+                    activeDot={{ r: 8 }}
+                  />
+                </RechartsLineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <p className="text-muted-foreground">No trade data available for the selected timeframe.</p>
+              </div>
+            )}
           </div>
-        </TabsContent>
-        
-        <TabsContent value="symbols" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Performance by Symbol</CardTitle>
-              <CardDescription>
-                Your best and worst performing symbols
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="max-h-[400px] overflow-y-auto">
-              {symbolPerformance.length > 0 ? (
-                <div className="grid gap-4">
-                  {/* Symbol performance chart */}
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RechartsBarChart
-                        data={symbolPerformance.slice(0, 10)} // Top 10 symbols
-                        margin={{ top: 5, right: 30, left: 20, bottom: 30 }}
-                        layout="vertical"
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" tickFormatter={(value) => `$${value}`} />
-                        <YAxis dataKey="symbol" type="category" width={70} />
-                        <Tooltip formatter={(value) => [`$${value}`, 'P&L']} />
-                        <Legend />
-                        <Bar 
-                          dataKey="pnl" 
-                          name="P&L" 
-                          fill={PROFIT_COLOR}
-                        >
-                          {symbolPerformance.slice(0, 10).map((entry, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={entry.pnl >= 0 ? PROFIT_COLOR : LOSS_COLOR} 
-                            />
-                          ))}
-                        </Bar>
-                      </RechartsBarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  
-                  {/* Symbols table */}
-                  <div className="border rounded-md">
-                    <div className="grid grid-cols-4 bg-muted p-3 text-sm font-medium">
-                      <div>Symbol</div>
-                      <div className="text-right">Trades</div>
-                      <div className="text-right">Win Rate</div>
-                      <div className="text-right">P&L</div>
-                    </div>
-                    <div className="divide-y">
-                      {symbolPerformance.map((symbol, index) => (
-                        <div key={index} className="grid grid-cols-4 p-3 hover:bg-muted/50 text-sm">
-                          <div className="font-medium">{symbol.symbol}</div>
-                          <div className="text-right">{symbol.trades}</div>
-                          <div className="text-right">{symbol.winRate.toFixed(1)}%</div>
-                          <div className={`text-right font-medium ${symbol.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                            {formatCurrency(symbol.pnl)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+        </CardContent>
+      </Card>
+      
+      {/* Trade Pattern Analysis Component */}
+      <TradePatternAnalysis trades={trades} timeframe={timeframe} />
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>P&L Distribution</CardTitle>
+            <CardDescription>
+              Distribution of trade P&L by range
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              {pnlDistributionData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsBarChart
+                    data={pnlDistributionData}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="range" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar
+                      dataKey="count"
+                      name="Number of Trades"
+                      fill="#8884d8"
+                    />
+                  </RechartsBarChart>
+                </ResponsiveContainer>
               ) : (
-                <div className="flex items-center justify-center h-[200px]">
-                  <p className="text-muted-foreground">No symbol data available</p>
+                <div className="flex h-full items-center justify-center">
+                  <p className="text-muted-foreground">No trade data available for the selected timeframe.</p>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          </CardContent>
+        </Card>
         
-        <TabsContent value="time" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Performance by Day of Week</CardTitle>
-                <CardDescription>
-                  Your best and worst trading days
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                {dayOfWeekData.some(day => day.trades > 0) ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsBarChart
-                      data={dayOfWeekData}
-                      margin={{ top: 5, right: 30, left: 20, bottom: 30 }}
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Symbols</CardTitle>
+            <CardDescription>
+              Performance by trading symbol
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              {symbolPerformanceData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsBarChart
+                    data={symbolPerformanceData}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    layout="vertical"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" />
+                    <YAxis dataKey="symbol" type="category" />
+                    <Tooltip formatter={(value) => [formatCurrency(Number(value)), "P&L"]} />
+                    <Legend />
+                    <Bar
+                      dataKey="pnl"
+                      name="Total P&L"
+                      fill={PROFIT_COLOR}
                     >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis yAxisId="left" orientation="left" />
-                      <YAxis 
-                        yAxisId="right" 
-                        orientation="right" 
-                        tickFormatter={(value) => `$${value}`} 
-                      />
-                      <Tooltip formatter={(value, name) => {
-                        if (name === 'trades') return [value, 'Number of Trades'];
-                        return [`$${value}`, 'P&L'];
-                      }} />
-                      <Legend />
-                      <Bar 
-                        dataKey="trades" 
-                        name="Number of Trades" 
-                        fill="#8884d8" 
-                        yAxisId="left"
-                      />
-                      <Bar 
-                        dataKey="pnl" 
-                        name="P&L" 
-                        fill="#82ca9d" 
-                        yAxisId="right"
-                      />
-                    </RechartsBarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-muted-foreground">No data available</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+                      {symbolPerformanceData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? PROFIT_COLOR : LOSS_COLOR} />
+                      ))}
+                    </Bar>
+                  </RechartsBarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center">
+                  <p className="text-muted-foreground">No trade data available for the selected timeframe.</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Day of Week Performance</CardTitle>
+            <CardDescription>
+              P&L by day of the week
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              {dayOfWeekData.some(day => day.count > 0) ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsBarChart
+                    data={dayOfWeekData}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="day" />
+                    <YAxis />
+                    <Tooltip formatter={(value) => [formatCurrency(Number(value)), "P&L"]} />
+                    <Legend />
+                    <Bar
+                      dataKey="pnl"
+                      name="Total P&L"
+                      fill={PROFIT_COLOR}
+                    >
+                      {dayOfWeekData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? PROFIT_COLOR : LOSS_COLOR} />
+                      ))}
+                    </Bar>
+                  </RechartsBarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center">
+                  <p className="text-muted-foreground">No trade data available for the selected timeframe.</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Trade Duration Analysis</CardTitle>
+            <CardDescription>
+              Performance by trade duration
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              {tradeDurationData.some(duration => duration.count > 0) ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsBarChart
+                    data={tradeDurationData}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="duration" />
+                    <YAxis yAxisId="left" />
+                    <YAxis yAxisId="right" orientation="right" />
+                    <Tooltip formatter={(value, name) => {
+                      if (name === "totalPnl" || name === "avgPnl") {
+                        return [formatCurrency(Number(value)), name === "totalPnl" ? "Total P&L" : "Avg P&L"];
+                      }
+                      return [value, "Count"];
+                    }} />
+                    <Legend />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="avgPnl"
+                      name="Average P&L"
+                      fill={PROFIT_COLOR}
+                    >
+                      {tradeDurationData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.avgPnl >= 0 ? PROFIT_COLOR : LOSS_COLOR} />
+                      ))}
+                    </Bar>
+                    <Bar
+                      yAxisId="right"
+                      dataKey="count"
+                      name="Trade Count"
+                      fill="#8884d8"
+                    />
+                  </RechartsBarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center">
+                  <p className="text-muted-foreground">No trade data available for the selected timeframe.</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

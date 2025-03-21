@@ -76,10 +76,10 @@ export function AccountFilter() {
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-[200px] justify-between"
+          className="w-[200px] justify-between border border-slate-800 bg-background/90 px-3 py-5 text-base font-medium"
         >
           {displayValue}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0">
@@ -121,7 +121,13 @@ export function AccountFilter() {
                     )}>
                       <CheckIcon className="h-4 w-4" />
                     </div>
-                    <span>{account.name}</span>
+                    <div className="flex items-center">
+                      <div 
+                        className="w-3 h-3 rounded-full mr-2" 
+                        style={{ backgroundColor: account.color || '#888888' }}
+                      />
+                      <span>{account.name}</span>
+                    </div>
                   </CommandItem>
                 );
               })}

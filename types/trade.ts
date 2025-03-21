@@ -17,4 +17,14 @@ export interface Trade {
   source?: string;
   importSource?: string;
   contractMultiplier?: number;
+  preMarketNotes?: string;
+  riskRewardRatio?: string;
+  stopLoss?: number;
+  takeProfit?: number;
+  mistakes?: string;
+  lessonLearned?: string;
+  tradeSetup?: string;
+  marketCondition?: string;
+  maxAdverseExcursion?: number;
+  maxFavorableExcursion?: number;
 } 

@@ -19,7 +19,17 @@ export const columns: ColumnDef<Trade>[] = [
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
-          className="border-violet-600"
+          className="trade-table-checkbox"
+          style={{ 
+            width: '16px', 
+            height: '16px', 
+            minWidth: '16px', 
+            minHeight: '16px',
+            maxWidth: '16px', 
+            maxHeight: '16px',
+            borderWidth: '1px',
+            aspectRatio: '1/1'
+          }}
         />
       </div>
     ),
@@ -29,7 +39,17 @@ export const columns: ColumnDef<Trade>[] = [
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
-          className="border-violet-600"
+          className="trade-table-checkbox"
+          style={{ 
+            width: '16px', 
+            height: '16px', 
+            minWidth: '16px', 
+            minHeight: '16px',
+            maxWidth: '16px', 
+            maxHeight: '16px',
+            borderWidth: '1px',
+            aspectRatio: '1/1'
+          }}
         />
       </div>
     ),

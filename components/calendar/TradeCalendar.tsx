@@ -219,108 +219,237 @@ export function TradeCalendar() {
   // Before rendering, log the current state
   console.log("RENDER: Calendar with", selectedAccounts.length, "selected accounts");
   
+  // Calculate monthly P&L
+  const getMonthlyPnL = useCallback(() => {
+    const filteredTrades = getFilteredTrades();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+    
+    return filteredTrades.reduce((sum, trade) => {
+      try {
+        const tradeDate = parseISO(trade.exitDate || trade.entryDate);
+        if (
+          tradeDate.getFullYear() === currentYear &&
+          tradeDate.getMonth() === currentMonth
+        ) {
+          return sum + (trade.pnl || 0);
+        }
+        return sum;
+      } catch (error) {
+        console.error("Error parsing date for trade:", trade.id, error);
+        return sum;
+      }
+    }, 0);
+  }, [currentDate, getFilteredTrades]);
+
+  // Get number of trading days in the month
+  const getMonthlyTradingDays = useCallback(() => {
+    const filteredTrades = getFilteredTrades();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+    
+    const tradeDates = new Set();
+    
+    filteredTrades.forEach(trade => {
+      try {
+        const tradeDate = parseISO(trade.exitDate || trade.entryDate);
+        if (
+          tradeDate.getFullYear() === currentYear &&
+          tradeDate.getMonth() === currentMonth
+        ) {
+          tradeDates.add(tradeDate.toDateString());
+        }
+      } catch (error) {
+        console.error("Error parsing date for trade:", trade.id, error);
+      }
+    });
+    
+    return tradeDates.size;
+  }, [currentDate, getFilteredTrades]);
+
+  // Get weekly summaries in a row-aligned format
+  const getWeekRows = useCallback(() => {
+    // Get number of weeks in the calendar view
+    const numWeeks = Math.ceil(calendarDays.length / 7);
+    
+    // Create an array of weeks
+    return Array.from({ length: numWeeks }).map((_, weekIndex) => {
+      // Get the days for this week
+      const weekDays = calendarDays.slice(weekIndex * 7, (weekIndex + 1) * 7).map(day => day.date);
+      
+      // Calculate total P&L and trading days for this week
+      let totalPnL = 0;
+      const tradingDays = new Set();
+      
+      weekDays.forEach(day => {
+        const trades = selectedAccounts.length > 0 ? getTradesForDate(day) : [];
+        if (trades.length > 0) {
+          totalPnL += getPnLForDate(day);
+          tradingDays.add(day.toDateString());
+        }
+      });
+      
+      // Calculate week number based on first day of the week
+      const firstDayOfWeek = weekDays[0];
+      const weekNumber = Math.ceil((firstDayOfWeek.getDate() + (new Date(firstDayOfWeek.getFullYear(), firstDayOfWeek.getMonth(), 1).getDay())) / 7);
+      
+      return {
+        weekNumber,
+        totalPnL,
+        tradingDays: tradingDays.size
+      };
+    });
+  }, [calendarDays, getTradesForDate, getPnLForDate, selectedAccounts]);
+  
   return (
-    <Card>
-      <CardHeader>
+    <Card className="border shadow-md rounded-xl overflow-hidden w-full max-w-none">
+      <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CalendarIcon className="h-5 w-5 text-muted-foreground" />
+            <CalendarIcon className="h-5 w-5 text-primary" />
             <CardTitle>Trading Calendar</CardTitle>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6 p-6">
         {selectedAccounts.length === 0 && (
-          <Alert>
-            <Filter className="h-4 w-4" />
-            <AlertDescription>
+          <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
+            <Filter className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="text-amber-800 dark:text-amber-300">
               {alertMessage}
             </AlertDescription>
           </Alert>
         )}
         
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline"
-              size="icon"
-              onClick={goToPreviousMonth}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="font-medium">{monthYearDisplay}</span>
-            <Button 
-              variant="outline"
-              size="icon"
-              onClick={goToNextMonth}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={goToCurrentMonth}>Today</Button>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                console.log("DEBUG button pressed");
-                console.log("Selected accounts:", selectedAccounts);
-                console.log("Filtered trades:", getFilteredTrades().length);
-                const allTrades = Object.values(trades);
-                console.log("All trades:", allTrades.length);
-                
-                // Check if the account IDs in trades match any selected accounts
-                const accountsInTrades = Array.from(new Set(allTrades.map(t => t.accountId).filter(Boolean))) as string[];
-                console.log("Account IDs in trades:", accountsInTrades);
-                console.log("Overlap with selected:", accountsInTrades.filter(id => selectedAccounts.includes(id)));
-              }}
-            >
-              Debug
-            </Button>
-          </div>
-        </div>
-        
-        {/* Calendar Grid */}
-        <div className="grid grid-cols-7 gap-px bg-muted text-center">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="py-2 font-medium">
-              {day}
+        <div className="w-full">
+          <div className="space-y-6 w-full">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button 
+                  variant="outline"
+                  size="icon"
+                  onClick={goToPreviousMonth}
+                  className="rounded-full h-8 w-8 p-0 border-primary/20 hover:bg-primary/5"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-base font-semibold">{monthYearDisplay}</span>
+                <Button 
+                  variant="outline"
+                  size="icon"
+                  onClick={goToNextMonth}
+                  className="rounded-full h-8 w-8 p-0 border-primary/20 hover:bg-primary/5"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-sm">
+                  <span className="text-muted-foreground mr-1">Monthly stats:</span>
+                  <span className={`font-medium ${getMonthlyPnL() > 0 ? 'text-green-500' : getMonthlyPnL() < 0 ? 'text-red-500' : ''}`}>${getMonthlyPnL().toFixed(2)}</span>
+                  <span className="text-muted-foreground ml-4 mr-1">{getMonthlyTradingDays()} days</span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={goToCurrentMonth}
+                  className="rounded-full text-sm px-4 border-primary/20 hover:bg-primary/5"
+                >
+                  This month
+                </Button>
+              </div>
             </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-px bg-muted">
-          {calendarDays.map(({ date, isCurrentMonth }, index) => {
-            // Only get trades and calculate PnL if accounts are selected
-            const trades = selectedAccounts.length > 0 ? getTradesForDate(date) : [];
-            const pnl = selectedAccounts.length > 0 ? getPnLForDate(date) : 0;
-            const isSelected = selectedDate && 
-              date.getFullYear() === selectedDate.getFullYear() &&
-              date.getMonth() === selectedDate.getMonth() &&
-              date.getDate() === selectedDate.getDate();
             
-            return (
-              <button
-                key={index}
-                onClick={() => handleDayClick(date)}
-                className={`min-h-[100px] bg-background p-2 text-left transition-colors hover:bg-accent ${
-                  !isCurrentMonth && 'text-muted-foreground'
-                } ${isSelected && 'ring-2 ring-ring'}`}
-              >
-                <span className="text-sm">{date.getDate()}</span>
-                {selectedAccounts.length > 0 && trades.length > 0 && (
-                  <div className="mt-1">
-                    <span className={`text-xs font-medium ${
-                      pnl >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {formatCurrency(pnl)}
-                    </span>
-                    <span className="text-xs text-muted-foreground ml-1">
-                      ({trades.length} trade{trades.length !== 1 ? 's' : ''})
-                    </span>
-                  </div>
-                )}
-              </button>
-            );
-          })}
+            <div className="grid grid-cols-[1fr_160px] gap-0 w-full">
+              {/* Calendar Grid */}
+              <div>
+                <div className="grid grid-cols-7 gap-0 bg-background/90 text-center">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    <div key={day} className="py-2 font-medium text-sm border-b">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-0">
+                  {calendarDays.map(({ date, isCurrentMonth }, index) => {
+                    // Calculate week row for styling first day of week
+                    const isFirstDayOfWeek = index % 7 === 0;
+                    
+                    // Only get trades and calculate PnL if accounts are selected
+                    const trades = selectedAccounts.length > 0 ? getTradesForDate(date) : [];
+                    const pnl = selectedAccounts.length > 0 ? getPnLForDate(date) : 0;
+                    const isSelected = selectedDate && 
+                      date.getFullYear() === selectedDate.getFullYear() &&
+                      date.getMonth() === selectedDate.getMonth() &&
+                      date.getDate() === selectedDate.getDate();
+                    
+                    // Check if today
+                    const isToday = date.toDateString() === new Date().toDateString();
+                    
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => handleDayClick(date)}
+                        className={`relative h-[100px] p-2 text-left transition-colors flex flex-col ${
+                          !isCurrentMonth ? 'opacity-40' : ''
+                        } ${isSelected ? 'ring-2 ring-primary shadow-sm' : 'hover:bg-accent/50'}
+                        ${isToday ? 'after:absolute after:top-2 after:right-2 after:w-2 after:h-2 after:rounded-full after:bg-primary/80' : ''}
+                        ${index >= 28 ? 'border-b' : ''} border-r`}
+                      >
+                        <span className={`text-sm font-medium ${isToday ? 'text-primary' : ''}`}>
+                          {date.getDate()}
+                        </span>
+                        <div className="flex-1 flex flex-col justify-end">
+                          {selectedAccounts.length > 0 && trades.length > 0 && (
+                            <div className="mt-auto">
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                pnl > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
+                                pnl < 0 ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : 
+                                'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400'
+                              }`}>
+                                {formatCurrency(pnl)}
+                              </span>
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {trades.length} trade{trades.length !== 1 ? 's' : ''}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              {/* Weekly Summaries Sidebar */}
+              <div className="flex flex-col justify-start">
+                {/* Header spacer to align with calendar header */}
+                <div className="py-2 font-medium text-center text-sm border-b">
+                  Week
+                </div>
+                
+                {/* Weekly summaries that align with rows */}
+                <div className="grid auto-rows-[100px] gap-0">
+                  {getWeekRows().map((week, index) => (
+                    <div 
+                      key={index}
+                      className={`flex flex-col justify-center px-4 h-[100px] border-r ${index >= getWeekRows().length - 1 ? 'border-b' : ''}`}
+                    >
+                      <div className="text-sm font-medium">Week {week.weekNumber}</div>
+                      <div className={`text-xl font-semibold ${week.totalPnL > 0 ? 'text-green-500' : week.totalPnL < 0 ? 'text-red-500' : ''}`}>
+                        ${week.totalPnL.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5">
+                          {week.tradingDays} {week.tradingDays === 1 ? 'day' : 'days'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </CardContent>
       

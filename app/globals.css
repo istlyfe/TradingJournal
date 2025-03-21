@@ -132,7 +132,9 @@ td {
 /* Checkbox custom styling */
 [role="checkbox"] {
   @apply relative !important;
-  border-width: 2px !important;
+  border-width: 1px !important;
+  height: 16px !important;
+  width: 16px !important;
   background: transparent !important;
 }
 
@@ -147,6 +149,12 @@ td {
 
 .dark [role="checkbox"][data-state="checked"] {
   background-color: hsl(var(--primary)) !important;
+}
+
+/* Checkbox icon size */
+[role="checkbox"] svg {
+  height: 12px !important;
+  width: 12px !important;
 }
 
 /* Table cell with checkbox alignment */

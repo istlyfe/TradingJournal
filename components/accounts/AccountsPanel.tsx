@@ -30,17 +30,15 @@ export function AccountsPanel() {
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3">
       <AccountFilter />
       
-      <Button 
-        size="icon" 
-        variant="outline"
+      <div 
         onClick={() => setDialogOpen(true)}
-        title="Add Account"
+        className="flex items-center justify-center h-[40px] w-[40px] rounded-md border-2 border-primary bg-background hover:bg-accent cursor-pointer shadow-sm"
       >
-        <Plus className="h-4 w-4" />
-      </Button>
+        <Plus className="h-6 w-6" />
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

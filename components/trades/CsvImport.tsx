@@ -1,7 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Upload, AlertTriangle, Check, FileText, HelpCircle, Info, ArrowRight, Trash2 } from "lucide-react";
+import { 
+  Upload, 
+  AlertTriangle, 
+  Check, 
+  FileText, 
+  HelpCircle, 
+  Info, 
+  ArrowRight, 
+  Trash2,
+  BarChart4,
+  LineChart,
+  PieChart,
+  TrendingUp,
+  Building2,
+  Banknote
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -11,11 +26,13 @@ import { calculatePnL, getContractMultiplier, isFutures } from "@/lib/tradeServi
 import { Account } from "@/components/accounts/AccountManager";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useBrokers } from "@/hooks/useBrokers";
 import { Trade } from "@/types/trade";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 export interface TradeData {
   id: string;
@@ -142,13 +159,43 @@ const platformConfigs: PlatformConfig[] = [
   }
 ];
 
-const SUPPORTED_PLATFORMS = [
-  "Tradovate",
-  "TradingView",
-  "Interactive Brokers",
-  "ThinkorSwim",
-  "Webull"
-] as const;
+// Organize platforms by category for better UI
+const PLATFORM_CATEGORIES = [
+  {
+    name: "Retail Brokers",
+    platforms: ["Interactive Brokers", "Webull", "ThinkorSwim"]
+  },
+  {
+    name: "Trading Platforms",
+    platforms: ["Tradovate", "TradingView"]
+  }
+];
+
+// Platform icons/logos map
+const PLATFORM_ICONS: Record<string, React.ReactNode> = {
+  "Tradovate": <BarChart4 className="h-5 w-5 text-blue-500" />,
+  "TradingView": <LineChart className="h-5 w-5 text-green-500" />,
+  "Interactive Brokers": <Building2 className="h-5 w-5 text-purple-500" />,
+  "ThinkorSwim": <TrendingUp className="h-5 w-5 text-orange-500" />,
+  "Webull": <Banknote className="h-5 w-5 text-red-500" />
+};
+
+// Alphabetically sorted platform names for dropdown
+const SUPPORTED_PLATFORMS = platformConfigs.map(config => config.name).sort() as readonly string[];
+
+// Pre-defined account colors (same as in AccountsPanel)
+const ACCOUNT_COLORS = [
+  '#7C3AED', // Purple
+  '#2563EB', // Blue
+  '#10B981', // Green
+  '#F59E0B', // Amber
+  '#EF4444', // Red
+  '#EC4899', // Pink
+  '#8B5CF6', // Violet
+  '#06B6D4', // Cyan
+  '#F97316', // Orange
+  '#6B7280', // Gray
+];
 
 export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: TradeData[]) => void }) {
   const [platform, setPlatform] = useState<string>();
@@ -161,7 +208,9 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
   const [error, setError] = useState<string>();
   const router = useRouter();
   const [newAccountName, setNewAccountName] = useState<string>("");
+  const [selectedColor, setSelectedColor] = useState(ACCOUNT_COLORS[0]);
   const { brokers } = useBrokers();
+  const [platformTab, setPlatformTab] = useState<string>("retail");
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -672,7 +721,7 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
       </DialogTrigger>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
         <DialogHeader>
-          <DialogTitle>Import Trades</DialogTitle>
+          <DialogTitle className="text-xl">Import Trades</DialogTitle>
           <DialogDescription>
             Import your trades from a CSV file exported from your trading platform.
           </DialogDescription>
@@ -680,62 +729,174 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
 
         {step === 1 ? (
           <div className="space-y-6 py-4">
-            <div className="space-y-2">
-              <h4 className="font-medium">Select Trading Platform</h4>
-              <Select value={platform} onValueChange={setPlatform}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select platform..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {SUPPORTED_PLATFORMS.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground">
-                Choose your trading platform to import trades from
-              </p>
+            <div className="space-y-3">
+              <h4 className="font-medium text-base">Select Trading Platform</h4>
+              
+              <Tabs defaultValue="retail" value={platformTab} onValueChange={setPlatformTab} className="w-full">
+                <TabsList className="w-full grid grid-cols-2">
+                  <TabsTrigger value="retail">Retail Brokers</TabsTrigger>
+                  <TabsTrigger value="platforms">Trading Platforms</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="retail" className="pt-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {PLATFORM_CATEGORIES[0].platforms.map(p => (
+                      <Card 
+                        key={p}
+                        className={`cursor-pointer hover:border-primary transition-all ${platform === p ? 'border-2 border-primary ring-2 ring-primary/20' : ''}`}
+                        onClick={() => setPlatform(p)}
+                      >
+                        <CardContent className="p-4 flex items-center gap-3">
+                          <div className="flex-shrink-0">
+                            {PLATFORM_ICONS[p]}
+                          </div>
+                          <div className="flex-grow">
+                            <h4 className="font-medium">{p}</h4>
+                          </div>
+                          {platform === p && (
+                            <div className="flex-shrink-0">
+                              <Check className="h-4 w-4 text-primary" />
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="platforms" className="pt-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {PLATFORM_CATEGORIES[1].platforms.map(p => (
+                      <Card 
+                        key={p}
+                        className={`cursor-pointer hover:border-primary transition-all ${platform === p ? 'border-2 border-primary ring-2 ring-primary/20' : ''}`}
+                        onClick={() => setPlatform(p)}
+                      >
+                        <CardContent className="p-4 flex items-center gap-3">
+                          <div className="flex-shrink-0">
+                            {PLATFORM_ICONS[p]}
+                          </div>
+                          <div className="flex-grow">
+                            <h4 className="font-medium">{p}</h4>
+                          </div>
+                          {platform === p && (
+                            <div className="flex-shrink-0">
+                              <Check className="h-4 w-4 text-primary" />
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </TabsContent>
+              </Tabs>
+              
+              {platform && (
+                <Badge variant="outline" className="mt-1 py-1 px-2">
+                  Selected: <span className="font-medium ml-1">{platform}</span>
+                </Badge>
+              )}
             </div>
 
-            <div className="space-y-2">
-              <h4 className="font-medium">Select Account</h4>
+            <div className="space-y-2 pt-2">
+              <h4 className="font-medium text-base">Choose Account</h4>
               <Select value={selectedAccount} onValueChange={setSelectedAccountId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select an account..." />
+                <SelectTrigger className="w-full">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    {selectedAccount === "new-account" ? (
+                      <span>Add New Account</span>
+                    ) : selectedAccount ? (
+                      <>
+                        {accounts?.find(acc => acc.id === selectedAccount)?.color && (
+                          <div 
+                            className="w-3 h-3 rounded-full flex-shrink-0" 
+                            style={{ backgroundColor: accounts?.find(acc => acc.id === selectedAccount)?.color }} 
+                          />
+                        )}
+                        <span className="truncate">
+                          {accounts?.find(acc => acc.id === selectedAccount)?.name || "Select an account..."}
+                        </span>
+                      </>
+                    ) : (
+                      <span>Select an account...</span>
+                    )}
+                  </div>
                 </SelectTrigger>
-                <SelectContent>
-                  {accounts?.map((account) => (
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  <SelectItem key="new-account" value="new-account">
+                    <div className="flex items-center">
+                      <span className="font-medium text-primary">+ Add New Account</span>
+                    </div>
+                  </SelectItem>
+                  
+                  <SelectSeparator />
+                  
+                  {accounts?.length > 0 && accounts.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
-                      {account.name}
+                      <div className="flex items-center gap-2">
+                        {account.color && (
+                          <div 
+                            className="w-3 h-3 rounded-full flex-shrink-0" 
+                            style={{ backgroundColor: account.color }} 
+                          />
+                        )}
+                        <span className="truncate">{account.name}</span>
+                      </div>
                     </SelectItem>
                   ))}
-                  <SelectItem key="new-account" value="new-account">
-                    + Add New Account
-                  </SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-sm text-muted-foreground">
-                Choose which account to import trades into
-              </p>
             </div>
 
             {selectedAccount === "new-account" && (
-              <div className="space-y-2 border rounded-lg p-4">
+              <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                 <h4 className="font-medium">Create New Account</h4>
-                <div className="space-y-2">
-                  <Input 
-                    placeholder="Account Name"
-                    value={newAccountName || ""}
-                    onChange={(e) => setNewAccountName(e.target.value)}
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="account-name" className="text-sm font-medium mb-1 block">
+                      Account Name
+                    </label>
+                    <Input 
+                      id="account-name"
+                      placeholder="Account Name"
+                      value={newAccountName || ""}
+                      onChange={(e) => setNewAccountName(e.target.value)}
+                      autoFocus
+                      className="bg-background"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Account Color
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {ACCOUNT_COLORS.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setSelectedColor(color)}
+                          className={`relative w-8 h-8 rounded-full transition-all ${
+                            selectedColor === color ? 'ring-2 ring-offset-2 ring-primary' : ''
+                          }`}
+                          style={{ backgroundColor: color }}
+                          title={`Select ${color} as account color`}
+                        >
+                          {selectedColor === color && (
+                            <Check className="absolute inset-0 m-auto h-4 w-4 text-white" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
                   <Button 
                     onClick={() => {
                       if (newAccountName.trim()) {
-                        const newAccount = createAccount(newAccountName);
+                        const newAccount = createAccount(newAccountName, selectedColor);
                         setSelectedAccountId(newAccount.id);
                         setNewAccountName("");
+                        setSelectedColor(ACCOUNT_COLORS[0]);
                       }
                     }}
                     disabled={!newAccountName?.trim()}
@@ -747,12 +908,12 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
               </div>
             )}
 
-            <div className="space-y-2">
-              <h4 className="font-medium">Upload CSV File</h4>
-              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-6">
+            <div className="space-y-2 pt-2">
+              <h4 className="font-medium text-base">Upload CSV File</h4>
+              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-6 bg-muted/10 hover:bg-muted/20 transition-colors">
                 <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground mb-2">
-                  Upload a CSV file from a supported trading platform
+                  Upload a CSV file from {platform ? platform : 'a supported trading platform'}
                 </p>
                 <input
                   type="file"
@@ -767,7 +928,7 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
                   </Button>
                 </label>
                 {selectedFile && (
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-2 text-sm font-medium">
                     Selected: {selectedFile.name}
                   </p>
                 )}
@@ -778,14 +939,15 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription className="whitespace-pre-wrap">{error}</AlertDescription>
               </Alert>
             )}
 
-            <div className="flex justify-end">
+            <div className="flex justify-end pt-2">
               <Button
                 onClick={parseCSV}
                 disabled={!platform || !selectedAccount || !selectedFile || isLoading}
+                className="w-auto px-5"
               >
                 {isLoading ? "Processing..." : "Continue"}
                 <ArrowRight className="ml-2 h-4 w-4" />

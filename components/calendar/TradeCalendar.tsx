@@ -19,6 +19,7 @@ export function TradeCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const { selectedAccounts } = useAccounts();
+  const [localSelectedAccounts, setLocalSelectedAccounts] = useState<string[]>([]);
   const [forceUpdate, setForceUpdate] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   
@@ -35,63 +36,94 @@ export function TradeCalendar() {
     }
   }, []);
   
-  // Listen for account selection changes
+  // Keep a local copy of selected accounts synchronized with localStorage
   useEffect(() => {
-    const handleSelectionChange = () => {
-      // Force re-render when account selection changes
-      setForceUpdate(prev => prev + 1);
-      console.log("Account selection changed! Selected accounts:", selectedAccounts);
+    // Initialize from localStorage first
+    try {
+      const storedAccounts = localStorage.getItem('tradingJournalSelectedAccounts');
+      if (storedAccounts) {
+        const parsedAccounts = JSON.parse(storedAccounts);
+        setLocalSelectedAccounts(parsedAccounts);
+        
+        // Close the dialog if it was open (prevents stale data)
+        setDialogOpen(false);
+      } else {
+        // If nothing in localStorage yet, use the value from useAccounts
+        setLocalSelectedAccounts(selectedAccounts);
+      }
+    } catch (error) {
+      console.error("Error parsing selected accounts from localStorage:", error);
+      setLocalSelectedAccounts(selectedAccounts);
+    }
+    
+    // Define handler functions
+    const handleSelectionChangeEvent = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.selectedAccounts) {
+        setLocalSelectedAccounts(customEvent.detail.selectedAccounts);
+        setForceUpdate(prev => prev + 1);
+        
+        // Close the dialog when account selection changes
+        setDialogOpen(false);
+      }
     };
     
-    // Add both event listener and storage change listener for redundancy
-    window.addEventListener(ACCOUNT_SELECTION_CHANGE, handleSelectionChange);
-    window.addEventListener('storage', (e) => {
+    const handleStorageEvent = (e: StorageEvent) => {
       if (e.key === 'tradingJournalSelectedAccounts') {
-        handleSelectionChange();
-        
-        // Also log the direct value from localStorage
         try {
-          const storedAccounts = localStorage.getItem('tradingJournalSelectedAccounts');
-          console.log("Storage event - stored accounts:", storedAccounts);
+          if (e.newValue) {
+            const parsedAccounts = JSON.parse(e.newValue);
+            setLocalSelectedAccounts(parsedAccounts);
+            setForceUpdate(prev => prev + 1);
+            
+            // Close the dialog when account selection changes
+            setDialogOpen(false);
+          }
         } catch (err) {
           console.error("Error reading from localStorage:", err);
         }
       }
-    });
+    };
     
-    // Log on initial mount
-    console.log("Initial selected accounts:", selectedAccounts);
+    // Add both event listeners
+    window.addEventListener(ACCOUNT_SELECTION_CHANGE, handleSelectionChangeEvent);
+    window.addEventListener('storage', handleStorageEvent);
     
     return () => {
-      window.removeEventListener(ACCOUNT_SELECTION_CHANGE, handleSelectionChange);
-      window.removeEventListener('storage', (e) => {
-        if (e.key === 'tradingJournalSelectedAccounts') {
-          handleSelectionChange();
-        }
-      });
+      window.removeEventListener(ACCOUNT_SELECTION_CHANGE, handleSelectionChangeEvent);
+      window.removeEventListener('storage', handleStorageEvent);
     };
   }, [selectedAccounts]);
+  
+  // Also update when the selectedAccounts prop changes
+  useEffect(() => {
+    if (JSON.stringify(selectedAccounts) !== JSON.stringify(localSelectedAccounts)) {
+      setLocalSelectedAccounts(selectedAccounts);
+      setForceUpdate(prev => prev + 1);
+      
+      // Close dialog when account selection changes directly via prop
+      setDialogOpen(false);
+    }
+  }, [selectedAccounts, localSelectedAccounts]);
   
   // Alert message
   const alertMessage = "No accounts selected. No trades will be shown. Use the account filter to select specific accounts.";
 
-  // Update the helper function to ensure it's properly memoized with all dependencies
+  // Update the helper function to use localSelectedAccounts instead
   const getFilteredTrades = useCallback(() => {
     const tradesArray = Object.values(trades);
-    console.log("getFilteredTrades called, selectedAccounts:", selectedAccounts);
     
     // When no accounts are selected, don't show any trades
-    if (!selectedAccounts.length) {
-      console.log("No accounts selected, returning empty array");
+    if (!localSelectedAccounts.length) {
       return [];
     }
     
     const filtered = tradesArray.filter(trade => 
-      trade.accountId && selectedAccounts.includes(trade.accountId)
+      trade.accountId && localSelectedAccounts.includes(trade.accountId)
     );
-    console.log(`Filtered ${tradesArray.length} trades down to ${filtered.length} trades`);
+    
     return filtered;
-  }, [trades, selectedAccounts, forceUpdate]);
+  }, [trades, localSelectedAccounts, forceUpdate]);
   
   // Navigation methods
   const goToPreviousMonth = () => {
@@ -195,7 +227,7 @@ export function TradeCalendar() {
     setSelectedDate(date);
     
     // Don't even try to look for trades if no accounts are selected
-    if (selectedAccounts.length === 0) {
+    if (localSelectedAccounts.length === 0) {
       setDialogOpen(false);
       return;
     }
@@ -217,7 +249,7 @@ export function TradeCalendar() {
   });
   
   // Before rendering, log the current state
-  console.log("RENDER: Calendar with", selectedAccounts.length, "selected accounts");
+  console.log("RENDER: Calendar with", localSelectedAccounts.length, "selected accounts");
   
   // Calculate monthly P&L
   const getMonthlyPnL = useCallback(() => {
@@ -282,7 +314,7 @@ export function TradeCalendar() {
       const tradingDays = new Set();
       
       weekDays.forEach(day => {
-        const trades = selectedAccounts.length > 0 ? getTradesForDate(day) : [];
+        const trades = localSelectedAccounts.length > 0 ? getTradesForDate(day) : [];
         if (trades.length > 0) {
           totalPnL += getPnLForDate(day);
           tradingDays.add(day.toDateString());
@@ -299,7 +331,7 @@ export function TradeCalendar() {
         tradingDays: tradingDays.size
       };
     });
-  }, [calendarDays, getTradesForDate, getPnLForDate, selectedAccounts]);
+  }, [calendarDays, getTradesForDate, getPnLForDate, localSelectedAccounts]);
   
   return (
     <Card className="border shadow-md rounded-xl overflow-hidden w-full max-w-none">
@@ -309,10 +341,13 @@ export function TradeCalendar() {
             <CalendarIcon className="h-5 w-5 text-primary" />
             <CardTitle>Trading Calendar</CardTitle>
           </div>
+          <div className="text-xs text-muted-foreground flex items-center gap-2">
+            <span>Selected accounts: {localSelectedAccounts.length ? localSelectedAccounts.length : 'None'}</span>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
-        {selectedAccounts.length === 0 && (
+        {localSelectedAccounts.length === 0 && (
           <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
             <Filter className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             <AlertDescription className="text-amber-800 dark:text-amber-300">
@@ -376,8 +411,8 @@ export function TradeCalendar() {
                     const isFirstDayOfWeek = index % 7 === 0;
                     
                     // Only get trades and calculate PnL if accounts are selected
-                    const trades = selectedAccounts.length > 0 ? getTradesForDate(date) : [];
-                    const pnl = selectedAccounts.length > 0 ? getPnLForDate(date) : 0;
+                    const trades = localSelectedAccounts.length > 0 ? getTradesForDate(date) : [];
+                    const pnl = localSelectedAccounts.length > 0 ? getPnLForDate(date) : 0;
                     const isSelected = selectedDate && 
                       date.getFullYear() === selectedDate.getFullYear() &&
                       date.getMonth() === selectedDate.getMonth() &&
@@ -400,7 +435,7 @@ export function TradeCalendar() {
                           {date.getDate()}
                         </span>
                         <div className="flex-1 flex flex-col justify-end">
-                          {selectedAccounts.length > 0 && trades.length > 0 && (
+                          {localSelectedAccounts.length > 0 && trades.length > 0 && (
                             <div className="mt-auto">
                               <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
                                 pnl > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
@@ -454,7 +489,7 @@ export function TradeCalendar() {
       </CardContent>
       
       {/* Day trades dialog - only show if accounts are selected */}
-      {selectedDate && selectedAccounts.length > 0 && (
+      {selectedDate && localSelectedAccounts.length > 0 && (
         <DayTradesDialog
           isOpen={dialogOpen}
           onClose={() => setDialogOpen(false)}

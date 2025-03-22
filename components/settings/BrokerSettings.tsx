@@ -14,7 +14,7 @@ import { brokerDefinitions } from "@/lib/broker-config";
 import { BrokerType, BrokerCredentials } from "@/types/broker";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useToast } from "@/components/providers/toast-provider";
+import { useToast } from "@/components/ui/use-toast";
 
 export function BrokerSettings() {
   const { brokers, addBroker, updateBroker, removeBroker, connectBroker, disconnectBroker, importTradesFromBroker } = useBrokers();

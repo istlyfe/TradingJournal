@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ACCOUNT_CREATED } from '@/components/accounts/AccountFilter';
+import { ACCOUNT_CREATED, ACCOUNT_SELECTION_CHANGE } from '@/components/accounts/AccountFilter';
 
 export interface Account {
   id: string;
@@ -16,55 +16,92 @@ export function useAccounts() {
 
   // Load accounts and selected accounts from localStorage
   useEffect(() => {
-    // Try to load accounts from localStorage first
-    const storedAccounts = localStorage.getItem('tradingJournalAccounts');
-    let loadedAccounts: Account[] = [];
-    
-    if (storedAccounts) {
-      try {
-        loadedAccounts = JSON.parse(storedAccounts);
-        setAccounts(loadedAccounts);
-      } catch (error) {
-        console.error("Error parsing accounts from localStorage:", error);
-      }
-    }
-    
-    // If no accounts were loaded, initialize with default account
-    if (!storedAccounts || loadedAccounts.length === 0) {
-      const defaultAccount: Account = {
-        id: '1',
-        name: 'Default Account',
-        createdAt: new Date().toISOString(),
-        isArchived: false,
-        color: '#7C3AED' // Default purple color
-      };
+    const loadAccountsFromStorage = () => {
+      // Try to load accounts from localStorage first
+      const storedAccounts = localStorage.getItem('tradingJournalAccounts');
+      let loadedAccounts: Account[] = [];
       
-      loadedAccounts = [defaultAccount];
-      setAccounts(loadedAccounts);
-      localStorage.setItem('tradingJournalAccounts', JSON.stringify(loadedAccounts));
-    }
-    
-    // Try to load selected accounts from localStorage
-    const storedSelectedAccounts = localStorage.getItem('tradingJournalSelectedAccounts');
-    if (storedSelectedAccounts) {
-      try {
-        const parsedSelectedAccounts = JSON.parse(storedSelectedAccounts);
-        setSelectedAccounts(parsedSelectedAccounts);
-      } catch (error) {
-        console.error("Error parsing selected accounts from localStorage:", error);
-        // Fall back to selecting all accounts
-        setSelectedAccounts(loadedAccounts.map(acc => acc.id));
+      if (storedAccounts) {
+        try {
+          loadedAccounts = JSON.parse(storedAccounts);
+          setAccounts(loadedAccounts);
+        } catch (error) {
+          console.error("Error parsing accounts from localStorage:", error);
+        }
       }
-    } else {
-      // If no selected accounts in localStorage, select all accounts
-      setSelectedAccounts(loadedAccounts.map(acc => acc.id));
-      localStorage.setItem(
-        'tradingJournalSelectedAccounts', 
-        JSON.stringify(loadedAccounts.map(acc => acc.id))
-      );
-    }
+      
+      // If no accounts were loaded, initialize with default account
+      if (!storedAccounts || loadedAccounts.length === 0) {
+        const defaultAccount: Account = {
+          id: '1',
+          name: 'Default Account',
+          createdAt: new Date().toISOString(),
+          isArchived: false,
+          color: '#7C3AED' // Default purple color
+        };
+        
+        loadedAccounts = [defaultAccount];
+        setAccounts(loadedAccounts);
+        localStorage.setItem('tradingJournalAccounts', JSON.stringify(loadedAccounts));
+      }
+      
+      return loadedAccounts;
+    };
     
+    const loadSelectedAccountsFromStorage = (loadedAccounts: Account[]) => {
+      // Try to load selected accounts from localStorage
+      const storedSelectedAccounts = localStorage.getItem('tradingJournalSelectedAccounts');
+      if (storedSelectedAccounts) {
+        try {
+          const parsedSelectedAccounts = JSON.parse(storedSelectedAccounts);
+          setSelectedAccounts(parsedSelectedAccounts);
+        } catch (error) {
+          console.error("Error parsing selected accounts from localStorage:", error);
+          // Fall back to selecting all accounts
+          setSelectedAccounts(loadedAccounts.map(acc => acc.id));
+        }
+      } else {
+        // If no selected accounts in localStorage, select all accounts
+        setSelectedAccounts(loadedAccounts.map(acc => acc.id));
+        localStorage.setItem(
+          'tradingJournalSelectedAccounts', 
+          JSON.stringify(loadedAccounts.map(acc => acc.id))
+        );
+      }
+    };
+    
+    // Initial load
+    const loadedAccounts = loadAccountsFromStorage();
+    loadSelectedAccountsFromStorage(loadedAccounts);
     setInitialized(true);
+    
+    // Set up event listeners for real-time updates
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'tradingJournalAccounts') {
+        const updatedAccounts = loadAccountsFromStorage();
+        loadSelectedAccountsFromStorage(updatedAccounts);
+      } 
+      else if (e.key === 'tradingJournalSelectedAccounts') {
+        loadSelectedAccountsFromStorage(accounts);
+      }
+    };
+    
+    const handleSelectionChange = (e: CustomEvent) => {
+      if (e.detail?.selectedAccounts) {
+        setSelectedAccounts(e.detail.selectedAccounts);
+      }
+    };
+    
+    // Listen for storage events (from other tabs/windows)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Handle local storage changes (same tab)
+    window.addEventListener(ACCOUNT_SELECTION_CHANGE, handleSelectionChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener(ACCOUNT_SELECTION_CHANGE, handleSelectionChange as EventListener);
+    };
   }, []);
 
   // Save accounts to localStorage whenever they change
@@ -73,6 +110,13 @@ export function useAccounts() {
       localStorage.setItem('tradingJournalAccounts', JSON.stringify(accounts));
     }
   }, [accounts, initialized]);
+
+  // Save selected accounts to localStorage whenever they change
+  useEffect(() => {
+    if (initialized && selectedAccounts.length >= 0) {
+      localStorage.setItem('tradingJournalSelectedAccounts', JSON.stringify(selectedAccounts));
+    }
+  }, [selectedAccounts, initialized]);
 
   // Toggle account selection
   const toggleAccount = (accountId: string) => {
@@ -115,9 +159,12 @@ export function useAccounts() {
     }));
     
     // Dispatch selection change event
-    window.dispatchEvent(new CustomEvent('account-selection-change', { 
+    window.dispatchEvent(new CustomEvent(ACCOUNT_SELECTION_CHANGE, { 
       detail: { selectedAccounts: updatedSelection }
     }));
+    
+    // Force storage event for other components
+    window.dispatchEvent(new Event('storage'));
     
     return newAccount;
   };

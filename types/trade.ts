@@ -2,7 +2,7 @@ export interface Trade {
   id: string;
   accountId?: string;
   symbol: string;
-  direction: 'LONG' | 'SHORT';
+  direction: 'long' | 'short';
   quantity: number;
   entryPrice: number;
   entryDate: string;

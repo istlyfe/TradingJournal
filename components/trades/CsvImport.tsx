@@ -15,13 +15,17 @@ import {
   PieChart,
   TrendingUp,
   Building2,
-  Banknote
+  Banknote,
+  ChevronUp,
+  ChevronDown,
+  PlusCircle,
+  ChevronsUpDown
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { parse } from "papaparse";
-import { parseTradeDate, formatDateTime, formatCurrency } from "@/lib/utils";
+import { parseTradeDate, formatDateTime, formatCurrency, cn } from "@/lib/utils";
 import { calculatePnL, getContractMultiplier, isFutures } from "@/lib/tradeService";
 import { Account } from "@/components/accounts/AccountManager";
 import { useRouter } from "next/navigation";
@@ -33,6 +37,20 @@ import { Trade } from "@/types/trade";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
 
 export interface TradeData {
   id: string;
@@ -55,6 +73,12 @@ export interface TradeData {
   accountId: string;
 }
 
+interface CsvImportProps {
+  onImportSuccess?: (trades: TradeData[]) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
 interface PlatformConfig {
   name: string;
   requiredHeaders: string[];
@@ -73,6 +97,23 @@ interface PlatformConfig {
 
 // Platform configurations with required headers and field mappings
 const platformConfigs: PlatformConfig[] = [
+  {
+    name: "TopstepX",
+    requiredHeaders: ["Id", "ContractName", "EnteredAt", "ExitedAt", "EntryPrice", "ExitPrice", "Fees", "PnL", "Size", "Type"],
+    symbolField: "ContractName",
+    directionField: "Type",
+    entryDateField: "EnteredAt",
+    entryPriceField: "EntryPrice",
+    exitDateField: "ExitedAt",
+    exitPriceField: "ExitPrice",
+    quantityField: "Size",
+    pnlField: "PnL",
+    feesField: "Fees",
+    directionMapping: {
+      "Long": "LONG",
+      "Short": "SHORT"
+    }
+  },
   {
     name: "Tradovate",
     requiredHeaders: ["Contract", "B/S", "Status", "Timestamp", "avgPrice", "filledQty"],
@@ -162,17 +203,14 @@ const platformConfigs: PlatformConfig[] = [
 // Organize platforms by category for better UI
 const PLATFORM_CATEGORIES = [
   {
-    name: "Retail Brokers",
-    platforms: ["Interactive Brokers", "Webull", "ThinkorSwim"]
-  },
-  {
-    name: "Trading Platforms",
-    platforms: ["Tradovate", "TradingView"]
+    name: "All Platforms",
+    platforms: ["TopstepX", "Tradovate", "TradingView", "Interactive Brokers", "Webull", "ThinkorSwim"]
   }
 ];
 
 // Platform icons/logos map
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
+  "TopstepX": <PieChart className="h-5 w-5 text-blue-700" />,
   "Tradovate": <BarChart4 className="h-5 w-5 text-blue-500" />,
   "TradingView": <LineChart className="h-5 w-5 text-green-500" />,
   "Interactive Brokers": <Building2 className="h-5 w-5 text-purple-500" />,
@@ -197,7 +235,52 @@ const ACCOUNT_COLORS = [
   '#6B7280', // Gray
 ];
 
-export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: TradeData[]) => void }) {
+// Platform-specific instructions
+const PLATFORM_INSTRUCTIONS: Record<string, string[]> = {
+  "TopstepX": [
+    "Log in to your TopstepX account",
+    "Go to the Reports section in the dashboard",
+    "Select the date range for your trades",
+    "Click on 'Export' to download the CSV file",
+    "Import the downloaded CSV file here"
+  ],
+  // Add instructions for other platforms as needed
+};
+
+// Instructions component
+function PlatformInstructions({ platformName }: { platformName: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const instructions = PLATFORM_INSTRUCTIONS[platformName] || [];
+  
+  if (!instructions.length) return null;
+  
+  return (
+    <div className="text-sm border rounded-md p-3 mb-3 bg-muted/10 w-full">
+      <button 
+        className="flex items-center justify-between w-full text-left" 
+        onClick={() => setExpanded(!expanded)}
+      >
+        <h5 className="font-medium flex items-center">
+          <Info className="h-4 w-4 mr-2 text-primary" />
+          How to export from {platformName}
+        </h5>
+        {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+      
+      {expanded && (
+        <div className="mt-2 pt-2 border-t">
+          <ol className="list-decimal pl-5 space-y-1">
+            {instructions.map((instruction, index) => (
+              <li key={index}>{instruction}</li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function CsvImport({ onImportSuccess, isOpen, onClose }: CsvImportProps) {
   const [platform, setPlatform] = useState<string>();
   const [selectedFile, setSelectedFile] = useState<File>();
   const { accounts, createAccount, toggleAccount } = useAccounts();
@@ -210,18 +293,54 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
   const [newAccountName, setNewAccountName] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState(ACCOUNT_COLORS[0]);
   const { brokers } = useBrokers();
-  const [platformTab, setPlatformTab] = useState<string>("retail");
+  const [autoSelectInFilter, setAutoSelectInFilter] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
+  // Use the isOpen prop if provided, otherwise use internal state
+  const showDialog = isOpen !== undefined ? isOpen : dialogOpen;
+
+  const handleOpenChange = (open: boolean) => {
+    if (onClose && !open) {
+      onClose();
+    } else {
+      setDialogOpen(open);
+    }
+
+    // Reset state when dialog is closed
+    if (!open) {
+      setPlatform(undefined);
+      setSelectedFile(undefined);
+      setSelectedAccountId("new-account");
+      setParsedTrades([]);
+      setStep(1);
       setError(undefined);
     }
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("File input change event triggered");
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      console.log("File selected:", file.name, "size:", file.size);
+      setSelectedFile(file);
+      setError(undefined);
+    } else {
+      console.log("No file selected or file selection canceled");
+    }
+  };
+
   const parseCSV = () => {
-    if (!selectedFile || !platform || !selectedAccount) return;
+    if (!selectedFile || !platform || !selectedAccount) {
+      console.error("Cannot parse CSV: missing file, platform, or account", { 
+        hasFile: !!selectedFile, 
+        platform, 
+        selectedAccount 
+      });
+      return;
+    }
+    
+    console.log("Starting CSV parsing for file:", selectedFile.name);
     setIsLoading(true);
     setError(undefined);
 
@@ -233,6 +352,7 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
       return;
     }
 
+    // Create a direct parse with PapaParse which handles the file reading internally
     parse(selectedFile, {
       header: true,
       skipEmptyLines: true,
@@ -241,7 +361,7 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
           // Enhanced debugging output
           console.log("CSV Parse Results:", {
             headers: results.meta.fields,
-            firstRow: results.data[0],
+            firstRow: results.data && results.data.length > 0 ? results.data[0] : null,
             totalRows: results.data.length,
             platform: platform,
             dateField: platformConfig?.entryDateField
@@ -262,356 +382,28 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
           const errors: string[] = [];
           const validTrades: Trade[] = [];
 
+          // Process the CSV based on the platform
+          results.data.forEach((row: any, index: number) => {
+            try {
+              // Create trade object based on the platform
+              if (platform === "TopstepX") {
+                processTopstepXRow(row, index, platformConfig, validTrades, errors);
+              } else if (platform === "Tradovate") {
+                // Tradovate is processed differently due to its format
+                // But we don't process individual rows here
+              } else {
+                // Generic processing for other platforms
+                processGenericRow(row, index, platformConfig, validTrades, errors);
+              }
+            } catch (rowError: any) {
+              console.error(`Error processing row ${index + 2}:`, rowError);
+              errors.push(`Row ${index + 2}: ${rowError.message}`);
+            }
+          });
+
+          // Special case for Tradovate which needs to group orders
           if (platform === "Tradovate") {
-            console.log("PROCESSING TRADOVATE CSV");
-            
-            // Group orders by symbol
-            const ordersBySymbol = new Map<string, any[]>();
-            const csvRows = results.data as any[];
-            
-            // Only use filled orders
-            const filledOrders = csvRows.filter(order => order.Status === " Filled" || order.Status === "Filled");
-            
-            // First few orders for debugging
-            console.log("FIRST 5 ORDERS:", filledOrders.slice(0, 5).map(order => ({
-              id: order.orderId,
-              action: order["B/S"],
-              symbol: order.Contract,
-              price: order["avgPrice"] || order["Avg Fill Price"],
-              quantity: order["filledQty"] || order["Filled Qty"],
-              timestamp: order.Timestamp
-            })));
-            
-            // Group by symbol
-            filledOrders.forEach(order => {
-              const symbol = order.Contract?.trim();
-              if (!symbol) return;
-              
-              if (!ordersBySymbol.has(symbol)) {
-                ordersBySymbol.set(symbol, []);
-              }
-              ordersBySymbol.get(symbol)!.push(order);
-            });
-            
-            // Process each symbol's orders
-            ordersBySymbol.forEach((orders, symbol) => {
-              // Sort orders chronologically
-              orders.sort((a, b) => new Date(a.Timestamp).getTime() - new Date(b.Timestamp).getTime());
-              
-              console.log(`Processing ${orders.length} orders for ${symbol}`);
-              
-              // Track positions - we'll have separate long and short position trackers
-              let longPositionSize = 0;
-              let longEntryTotal = 0;
-              let longEntryTime: Date | null = null;
-              
-              let shortPositionSize = 0;
-              let shortEntryTotal = 0;
-              let shortEntryTime: Date | null = null;
-              
-              orders.forEach(order => {
-                try {
-                  // Handle different column formats
-                  const filledQtyField = order["Filled Qty"] !== undefined ? "Filled Qty" : "filledQty";
-                  const priceField = order["Avg Fill Price"] !== undefined ? "Avg Fill Price" : "avgPrice";
-                  const actionField = order["B/S"] !== undefined ? "B/S" : "Side";
-                  
-                  let qty = parseFloat(String(order[filledQtyField]).replace(/[,]/g, "") || "0");
-                  let price = parseFloat(String(order[priceField]).replace(/[$,]/g, "") || "0");
-                  
-                  // Handle action field variations
-                  const action = String(order[actionField]).trim();
-                  const isBuy = action === " Buy" || action === "Buy" || action === "BUY" || action === "B";
-                  
-                  const multiplier = getContractMultiplier(symbol);
-                  // Force NQ multiplier to always be 20
-                  const effectiveMultiplier = symbol.toUpperCase().includes('NQ') ? 20 : multiplier;
-                  
-                  console.log(`Processing ${symbol} with multiplier: ${effectiveMultiplier}`);
-                  const timestamp = new Date(order.Timestamp);
-                  
-                  if (!qty || !price) {
-                    console.log("Skipping order with invalid price/quantity", { price, qty });
-                    return;
-                  }
-                  
-                  console.log(`Processing order: ${isBuy ? "BUY" : "SELL"} ${qty} ${symbol} @ ${price}`);
-                  
-                  // Buy order handling
-                  if (isBuy) {
-                    // First, check if we're closing a short position
-                    if (shortPositionSize > 0) {
-                      const closeQty = Math.min(shortPositionSize, qty);
-                      const avgShortEntry = shortEntryTotal / shortPositionSize;
-                      const pnl = calculatePnL(symbol, "SHORT", avgShortEntry, price, closeQty);
-                      
-                      console.log(`Closing SHORT position: ${closeQty} @ ${price}, entry was ${avgShortEntry}, PNL: ${pnl}`);
-                      
-                      validTrades.push({
-                        id: crypto.randomUUID(),
-                        symbol,
-                        direction: "SHORT",
-                        entryDate: shortEntryTime!.toISOString(),
-                        entryPrice: avgShortEntry,
-                        exitDate: timestamp.toISOString(),
-                        exitPrice: price,
-                        quantity: closeQty,
-                        pnl,
-                        notes: "",
-                        tags: [],
-                        accountId: selectedAccount
-                      });
-                      
-                      shortPositionSize -= closeQty;
-                      shortEntryTotal = shortPositionSize > 0 ? avgShortEntry * shortPositionSize : 0;
-                      
-                      // If we still have quantity remaining after closing short, open a long position
-                      const remainingQty = qty - closeQty;
-                      if (remainingQty > 0) {
-                        if (longPositionSize === 0) {
-                          longEntryTime = timestamp;
-                        }
-                        longEntryTotal += price * remainingQty;
-                        longPositionSize += remainingQty;
-                        console.log(`Opening LONG position: ${remainingQty} @ ${price}`);
-                      }
-                    } 
-                    // Otherwise just add to long position
-                    else {
-                      if (longPositionSize === 0) {
-                        longEntryTime = timestamp;
-                      }
-                      longEntryTotal += price * qty;
-                      longPositionSize += qty;
-                      console.log(`Opening/adding to LONG position: ${qty} @ ${price}`);
-                    }
-                  } 
-                  // Sell order handling
-                  else {
-                    // First, check if we're closing a long position
-                    if (longPositionSize > 0) {
-                      const closeQty = Math.min(longPositionSize, qty);
-                      const avgLongEntry = longEntryTotal / longPositionSize;
-                      const pnl = calculatePnL(symbol, "LONG", avgLongEntry, price, closeQty);
-                      
-                      console.log(`Closing LONG position: ${closeQty} @ ${price}, entry was ${avgLongEntry}, PNL: ${pnl}`);
-                      
-                      validTrades.push({
-                        id: crypto.randomUUID(),
-                        symbol,
-                        direction: "LONG",
-                        entryDate: longEntryTime!.toISOString(),
-                        entryPrice: avgLongEntry,
-                        exitDate: timestamp.toISOString(),
-                        exitPrice: price,
-                        quantity: closeQty,
-                        pnl,
-                        notes: "",
-                        tags: [],
-                        accountId: selectedAccount
-                      });
-                      
-                      longPositionSize -= closeQty;
-                      longEntryTotal = longPositionSize > 0 ? avgLongEntry * longPositionSize : 0;
-                      
-                      // If we still have quantity remaining after closing long, open a short position
-                      const remainingQty = qty - closeQty;
-                      if (remainingQty > 0) {
-                        if (shortPositionSize === 0) {
-                          shortEntryTime = timestamp;
-                        }
-                        shortEntryTotal += price * remainingQty;
-                        shortPositionSize += remainingQty;
-                        console.log(`Opening SHORT position: ${remainingQty} @ ${price}`);
-                      }
-                    } 
-                    // Otherwise just add to short position
-                    else {
-                      if (shortPositionSize === 0) {
-                        shortEntryTime = timestamp;
-                      }
-                      shortEntryTotal += price * qty;
-                      shortPositionSize += qty;
-                      console.log(`Opening/adding to SHORT position: ${qty} @ ${price}`);
-                    }
-                  }
-                } catch (error) {
-                  console.error("Error processing order:", error);
-                  errors.push(`Error processing order: ${error instanceof Error ? error.message : String(error)}`);
-                }
-              });
-              
-              // Handle remaining open positions
-              if (longPositionSize > 0) {
-                const avgEntry = longEntryTotal / longPositionSize;
-                console.log(`Adding open LONG position: ${longPositionSize} @ ${avgEntry}`);
-                
-                validTrades.push({
-                  id: crypto.randomUUID(),
-                  symbol,
-                  direction: "LONG",
-                  entryDate: longEntryTime!.toISOString(),
-                  entryPrice: avgEntry,
-                  quantity: longPositionSize,
-                  notes: "",
-                  tags: [],
-                  accountId: selectedAccount
-                });
-              }
-              
-              if (shortPositionSize > 0) {
-                const avgEntry = shortEntryTotal / shortPositionSize;
-                console.log(`Adding open SHORT position: ${shortPositionSize} @ ${avgEntry}`);
-                
-                validTrades.push({
-                  id: crypto.randomUUID(),
-                  symbol,
-                  direction: "SHORT",
-                  entryDate: shortEntryTime!.toISOString(),
-                  entryPrice: avgEntry,
-                  quantity: shortPositionSize,
-                  notes: "",
-                  tags: [],
-                  accountId: selectedAccount
-                });
-              }
-            });
-          } else {
-            // Original parsing logic for other platforms
-            results.data
-              .filter((row: any) => {
-                return Object.keys(row).length > 0 && 
-                       Object.values(row).some(val => val !== null && val !== "");
-              })
-              .forEach((row: any, index: number) => {
-                try {
-                  // Enhanced row debugging
-                  console.log(`Processing row ${index + 1}:`, {
-                    row,
-                    filledQty: row["Filled Qty"],
-                    avgFillPrice: row["Avg Fill Price"],
-                    timestamp: row.Timestamp,
-                    symbol: row[platformConfig.symbolField],
-                    direction: row[platformConfig.directionField]
-                  });
-
-                  // Check required fields
-                  const symbol = row[platformConfig.symbolField]?.trim();
-                  if (!symbol) {
-                    errors.push(`Row ${index + 1}: Missing symbol`);
-                    return;
-                  }
-
-                  const directionRaw = row[platformConfig.directionField]?.trim();
-                  if (!directionRaw) {
-                    errors.push(`Row ${index + 1}: Missing direction`);
-                    return;
-                  }
-
-                  const direction = platformConfig.directionMapping[directionRaw] || 
-                    (directionRaw.toLowerCase().includes("buy") ? "LONG" : "SHORT");
-                  
-                  // For Tradovate: use Timestamp for entry date
-                  let dateStr = platform === "Tradovate" ? row.Timestamp?.trim() : row[platformConfig.entryDateField]?.trim();
-
-                  if (!dateStr) {
-                    const rowData = Object.entries(row)
-                      .map(([key, value]) => `${key}: ${value}`)
-                      .join(", ");
-                    errors.push(`Row ${index + 1}: Missing entry date. Row data: ${rowData}`);
-                    return;
-                  }
-
-                  const entryDate = parseTradeDate(dateStr);
-                  if (!entryDate) {
-                    errors.push(`Row ${index + 1}: Invalid entry date format: "${dateStr}"`);
-                    return;
-                  }
-
-                  // For Tradovate: use Avg Fill Price
-                  let entryPriceRaw = platform === "Tradovate" ? 
-                    row["Avg Fill Price"]?.trim() : 
-                    row[platformConfig.entryPriceField]?.trim();
-
-                  if (!entryPriceRaw) {
-                    errors.push(`Row ${index + 1}: Missing entry price`);
-                    return;
-                  }
-                  
-                  const entryPrice = parseFloat(entryPriceRaw.replace(/[$,]/g, ""));
-                  if (isNaN(entryPrice)) {
-                    errors.push(`Row ${index + 1}: Invalid entry price: "${entryPriceRaw}"`);
-                    return;
-                  }
-
-                  // For Tradovate: use Filled Qty
-                  let quantityRaw = platform === "Tradovate" ? 
-                    row["Filled Qty"]?.trim() : 
-                    row[platformConfig.quantityField]?.trim();
-
-                  if (!quantityRaw) {
-                    errors.push(`Row ${index + 1}: Missing quantity`);
-                    return;
-                  }
-                  
-                  const quantity = parseFloat(quantityRaw.replace(/[,]/g, ""));
-                  if (isNaN(quantity)) {
-                    errors.push(`Row ${index + 1}: Invalid quantity: "${quantityRaw}"`);
-                    return;
-                  }
-
-                  // Optional fields
-                  let exitDate = undefined;
-                  let exitPrice = undefined;
-                  let pnl = undefined;
-                  let fees = undefined;
-
-                  if (platformConfig.exitDateField && row[platformConfig.exitDateField]?.trim()) {
-                    const parsedExitDate = parseTradeDate(row[platformConfig.exitDateField]);
-                    if (parsedExitDate) {
-                      exitDate = parsedExitDate.toISOString();
-                    }
-                  }
-
-                  if (platformConfig.exitPriceField && row[platformConfig.exitPriceField]?.trim()) {
-                    exitPrice = parseFloat(row[platformConfig.exitPriceField].replace(/[$,]/g, ""));
-                  }
-
-                  if (platformConfig.pnlField && row[platformConfig.pnlField]?.trim()) {
-                    pnl = parseFloat(row[platformConfig.pnlField].replace(/[$,]/g, ""));
-                  }
-
-                  if (platformConfig.feesField && row[platformConfig.feesField]?.trim()) {
-                    fees = parseFloat(row[platformConfig.feesField].replace(/[$,]/g, ""));
-                  }
-
-                  // Calculate contract multiplier for futures
-                  const isNQ = symbol.toUpperCase().includes('NQ');
-                  const contractMultiplier = isNQ ? 20 : (isFutures(symbol) ? getContractMultiplier(symbol) : 1);
-                  
-                  console.log(`Using multiplier ${contractMultiplier} for ${symbol}`);
-
-                  validTrades.push({
-                    id: crypto.randomUUID(),
-                    accountId: selectedAccount,
-                    symbol,
-                    direction,
-                    quantity,
-                    entryPrice,
-                    entryDate: entryDate.toISOString(),
-                    exitDate,
-                    exitPrice,
-                    pnl,
-                    fees,
-                    contractMultiplier,
-                    source: "import",
-                    importSource: platform
-                  } as Trade);
-                } catch (rowError: any) {
-                  console.error(`Error processing row ${index + 1}:`, rowError);
-                  errors.push(`Row ${index + 1}: ${rowError.message}`);
-                }
-              });
+            processTradovateData(results.data as any[], validTrades, errors);
           }
 
           if (errors.length > 0) {
@@ -620,6 +412,7 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
             return;
           }
 
+          console.log(`Successfully parsed ${validTrades.length} trades`);
           setParsedTrades(validTrades);
           setStep(2);
         } catch (e) {
@@ -632,6 +425,410 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
         console.error("CSV read error:", error);
         setError("Failed to read CSV file. Please check the file and try again.");
         setIsLoading(false);
+      }
+    });
+  };
+
+  // Helper function to process TopstepX rows
+  const processTopstepXRow = (row: any, index: number, platformConfig: PlatformConfig, validTrades: Trade[], errors: string[]) => {
+    // Validate required fields
+    const requiredFields = [
+      platformConfig.symbolField,
+      platformConfig.directionField,
+      platformConfig.entryDateField,
+      platformConfig.entryPriceField,
+      platformConfig.quantityField
+    ];
+    
+    const missingFields = requiredFields.filter(field => !row[field]);
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
+    }
+    
+    // Parse dates with timezone information
+    let entryDate;
+    try {
+      entryDate = new Date(row[platformConfig.entryDateField]);
+      if (isNaN(entryDate.getTime())) {
+        throw new Error(`Invalid entry date format: ${row[platformConfig.entryDateField]}`);
+      }
+    } catch (e) {
+      throw new Error(`Failed to parse entry date: ${row[platformConfig.entryDateField]}`);
+    }
+    
+    let exitDate = undefined;
+    if (platformConfig.exitDateField && row[platformConfig.exitDateField]) {
+      try {
+        exitDate = new Date(row[platformConfig.exitDateField]);
+        if (isNaN(exitDate.getTime())) {
+          console.warn(`Invalid exit date format, setting to undefined: ${row[platformConfig.exitDateField]}`);
+          exitDate = undefined;
+        }
+      } catch (e) {
+        console.warn(`Failed to parse exit date, setting to undefined: ${row[platformConfig.exitDateField]}`);
+      }
+    }
+    
+    // Parse numerical values
+    const entryPrice = parseFloat(String(row[platformConfig.entryPriceField]).replace(/[$,]/g, ""));
+    let exitPrice = undefined;
+    if (platformConfig.exitPriceField && row[platformConfig.exitPriceField]) {
+      exitPrice = parseFloat(String(row[platformConfig.exitPriceField]).replace(/[$,]/g, ""));
+    }
+    
+    const quantity = parseFloat(String(row[platformConfig.quantityField]).replace(/[,]/g, ""));
+    
+    // Handle direction mapping
+    const rawDirection = row[platformConfig.directionField];
+    const direction = platformConfig.directionMapping[rawDirection];
+    
+    if (!direction) {
+      throw new Error(`Unknown direction: ${rawDirection}`);
+    }
+    
+    // Handle fees and PnL
+    let fees = undefined;
+    if (platformConfig.feesField && row[platformConfig.feesField]) {
+      fees = parseFloat(String(row[platformConfig.feesField]).replace(/[$,]/g, ""));
+    }
+    
+    let pnl = undefined;
+    if (platformConfig.pnlField && row[platformConfig.pnlField]) {
+      pnl = parseFloat(String(row[platformConfig.pnlField]).replace(/[$,]/g, ""));
+    } else if (entryPrice && exitPrice && quantity) {
+      // Calculate PnL if not provided
+      const multiplier = getContractMultiplier(row[platformConfig.symbolField]);
+      const directionMultiplier = direction === "LONG" ? 1 : -1;
+      pnl = directionMultiplier * (exitPrice - entryPrice) * quantity * multiplier;
+    }
+    
+    // Create trade object
+    const trade: Trade = {
+      id: row.Id || crypto.randomUUID(),
+      symbol: row[platformConfig.symbolField],
+      direction,
+      entryDate: entryDate.toISOString(),
+      entryPrice,
+      exitDate: exitDate?.toISOString(),
+      exitPrice,
+      quantity,
+      pnl,
+      fees,
+      source: "import",
+      importSource: platform,
+      contractMultiplier: getContractMultiplier(row[platformConfig.symbolField]),
+      accountId: selectedAccount
+    };
+    
+    validTrades.push(trade);
+  };
+
+  // Helper function to process generic rows for other platforms
+  const processGenericRow = (row: any, index: number, platformConfig: PlatformConfig, validTrades: Trade[], errors: string[]) => {
+    // Check required fields
+    const symbol = row[platformConfig.symbolField]?.trim();
+    if (!symbol) {
+      throw new Error(`Missing symbol`);
+    }
+
+    const directionRaw = row[platformConfig.directionField]?.trim();
+    if (!directionRaw) {
+      throw new Error(`Missing direction`);
+    }
+
+    const direction = platformConfig.directionMapping[directionRaw] || 
+      (directionRaw.toLowerCase().includes("buy") ? "LONG" : "SHORT");
+    
+    const dateStr = row[platformConfig.entryDateField]?.trim();
+    if (!dateStr) {
+      const rowData = Object.entries(row)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(", ");
+      throw new Error(`Missing entry date. Row data: ${rowData}`);
+    }
+
+    const entryDate = parseTradeDate(dateStr);
+    if (!entryDate) {
+      throw new Error(`Invalid entry date format: "${dateStr}"`);
+    }
+
+    const entryPriceRaw = row[platformConfig.entryPriceField]?.trim();
+    if (!entryPriceRaw) {
+      throw new Error(`Missing entry price`);
+    }
+    
+    const entryPrice = parseFloat(entryPriceRaw.replace(/[$,]/g, ""));
+    if (isNaN(entryPrice)) {
+      throw new Error(`Invalid entry price: "${entryPriceRaw}"`);
+    }
+
+    const quantityRaw = row[platformConfig.quantityField]?.trim();
+    if (!quantityRaw) {
+      throw new Error(`Missing quantity`);
+    }
+    
+    const quantity = parseFloat(quantityRaw.replace(/[,]/g, ""));
+    if (isNaN(quantity)) {
+      throw new Error(`Invalid quantity: "${quantityRaw}"`);
+    }
+
+    // Optional fields
+    let exitDate = undefined;
+    let exitPrice = undefined;
+    let pnl = undefined;
+    let fees = undefined;
+
+    if (platformConfig.exitDateField && row[platformConfig.exitDateField]?.trim()) {
+      const parsedExitDate = parseTradeDate(row[platformConfig.exitDateField]);
+      if (parsedExitDate) {
+        exitDate = parsedExitDate.toISOString();
+      }
+    }
+
+    if (platformConfig.exitPriceField && row[platformConfig.exitPriceField]?.trim()) {
+      exitPrice = parseFloat(row[platformConfig.exitPriceField].replace(/[$,]/g, ""));
+    }
+
+    if (platformConfig.pnlField && row[platformConfig.pnlField]?.trim()) {
+      pnl = parseFloat(row[platformConfig.pnlField].replace(/[$,]/g, ""));
+    }
+
+    if (platformConfig.feesField && row[platformConfig.feesField]?.trim()) {
+      fees = parseFloat(row[platformConfig.feesField].replace(/[$,]/g, ""));
+    }
+
+    // Calculate contract multiplier for futures
+    const isNQ = symbol.toUpperCase().includes('NQ');
+    const contractMultiplier = isNQ ? 20 : (isFutures(symbol) ? getContractMultiplier(symbol) : 1);
+
+    validTrades.push({
+      id: crypto.randomUUID(),
+      accountId: selectedAccount,
+      symbol,
+      direction,
+      quantity,
+      entryPrice,
+      entryDate: entryDate.toISOString(),
+      exitDate,
+      exitPrice,
+      pnl,
+      fees,
+      contractMultiplier,
+      source: "import",
+      importSource: platform
+    } as Trade);
+  };
+
+  // Helper function to process Tradovate data which requires grouping orders
+  const processTradovateData = (rows: any[], validTrades: Trade[], errors: string[]) => {
+    // Group orders by symbol
+    const ordersBySymbol = new Map<string, any[]>();
+    
+    // Only use filled orders
+    const filledOrders = rows.filter(order => order.Status === " Filled" || order.Status === "Filled");
+    
+    // First few orders for debugging
+    console.log("FIRST 5 ORDERS:", filledOrders.slice(0, 5).map(order => ({
+      id: order.orderId,
+      action: order["B/S"],
+      symbol: order.Contract,
+      price: order["avgPrice"] || order["Avg Fill Price"],
+      quantity: order["filledQty"] || order["Filled Qty"],
+      timestamp: order.Timestamp
+    })));
+    
+    // Group by symbol
+    filledOrders.forEach(order => {
+      const symbol = order.Contract?.trim();
+      if (!symbol) return;
+      
+      if (!ordersBySymbol.has(symbol)) {
+        ordersBySymbol.set(symbol, []);
+      }
+      ordersBySymbol.get(symbol)!.push(order);
+    });
+    
+    // Process each symbol's orders
+    ordersBySymbol.forEach((orders, symbol) => {
+      // Sort orders chronologically
+      orders.sort((a, b) => new Date(a.Timestamp).getTime() - new Date(b.Timestamp).getTime());
+      
+      console.log(`Processing ${orders.length} orders for ${symbol}`);
+      
+      // Track positions - we'll have separate long and short position trackers
+      let longPositionSize = 0;
+      let longEntryTotal = 0;
+      let longEntryTime: Date | null = null;
+      
+      let shortPositionSize = 0;
+      let shortEntryTotal = 0;
+      let shortEntryTime: Date | null = null;
+      
+      orders.forEach(order => {
+        try {
+          // Handle different column formats
+          const filledQtyField = order["Filled Qty"] !== undefined ? "Filled Qty" : "filledQty";
+          const priceField = order["Avg Fill Price"] !== undefined ? "Avg Fill Price" : "avgPrice";
+          const actionField = order["B/S"] !== undefined ? "B/S" : "Side";
+          
+          let qty = parseFloat(String(order[filledQtyField]).replace(/[,]/g, "") || "0");
+          let price = parseFloat(String(order[priceField]).replace(/[$,]/g, "") || "0");
+          
+          // Handle action field variations
+          const action = String(order[actionField]).trim();
+          const isBuy = action === " Buy" || action === "Buy" || action === "BUY" || action === "B";
+          
+          const multiplier = getContractMultiplier(symbol);
+          // Force NQ multiplier to always be 20
+          const effectiveMultiplier = symbol.toUpperCase().includes('NQ') ? 20 : multiplier;
+          
+          console.log(`Processing ${symbol} with multiplier: ${effectiveMultiplier}`);
+          const timestamp = new Date(order.Timestamp);
+          
+          if (!qty || !price) {
+            console.log("Skipping order with invalid price/quantity", { price, qty });
+            return;
+          }
+          
+          console.log(`Processing order: ${isBuy ? "BUY" : "SELL"} ${qty} ${symbol} @ ${price}`);
+          
+          // Buy order handling
+          if (isBuy) {
+            // First, check if we're closing a short position
+            if (shortPositionSize > 0) {
+              const closeQty = Math.min(shortPositionSize, qty);
+              const avgShortEntry = shortEntryTotal / shortPositionSize;
+              const pnl = calculatePnL(symbol, "SHORT", avgShortEntry, price, closeQty);
+              
+              console.log(`Closing SHORT position: ${closeQty} @ ${price}, entry was ${avgShortEntry}, PNL: ${pnl}`);
+              
+              validTrades.push({
+                id: crypto.randomUUID(),
+                symbol,
+                direction: "SHORT",
+                entryDate: shortEntryTime!.toISOString(),
+                entryPrice: avgShortEntry,
+                exitDate: timestamp.toISOString(),
+                exitPrice: price,
+                quantity: closeQty,
+                pnl,
+                notes: "",
+                tags: [],
+                accountId: selectedAccount
+              });
+              
+              shortPositionSize -= closeQty;
+              shortEntryTotal = shortPositionSize > 0 ? avgShortEntry * shortPositionSize : 0;
+              
+              // If we still have quantity remaining after closing short, open a long position
+              const remainingQty = qty - closeQty;
+              if (remainingQty > 0) {
+                if (longPositionSize === 0) {
+                  longEntryTime = timestamp;
+                }
+                longEntryTotal += price * remainingQty;
+                longPositionSize += remainingQty;
+                console.log(`Opening LONG position: ${remainingQty} @ ${price}`);
+              }
+            } 
+            // Otherwise just add to long position
+            else {
+              if (longPositionSize === 0) {
+                longEntryTime = timestamp;
+              }
+              longEntryTotal += price * qty;
+              longPositionSize += qty;
+              console.log(`Opening/adding to LONG position: ${qty} @ ${price}`);
+            }
+          } 
+          // Sell order handling
+          else {
+            // First, check if we're closing a long position
+            if (longPositionSize > 0) {
+              const closeQty = Math.min(longPositionSize, qty);
+              const avgLongEntry = longEntryTotal / longPositionSize;
+              const pnl = calculatePnL(symbol, "LONG", avgLongEntry, price, closeQty);
+              
+              console.log(`Closing LONG position: ${closeQty} @ ${price}, entry was ${avgLongEntry}, PNL: ${pnl}`);
+              
+              validTrades.push({
+                id: crypto.randomUUID(),
+                symbol,
+                direction: "LONG",
+                entryDate: longEntryTime!.toISOString(),
+                entryPrice: avgLongEntry,
+                exitDate: timestamp.toISOString(),
+                exitPrice: price,
+                quantity: closeQty,
+                pnl,
+                notes: "",
+                tags: [],
+                accountId: selectedAccount
+              });
+              
+              longPositionSize -= closeQty;
+              longEntryTotal = longPositionSize > 0 ? avgLongEntry * longPositionSize : 0;
+              
+              // If we still have quantity remaining after closing long, open a short position
+              const remainingQty = qty - closeQty;
+              if (remainingQty > 0) {
+                if (shortPositionSize === 0) {
+                  shortEntryTime = timestamp;
+                }
+                shortEntryTotal += price * remainingQty;
+                shortPositionSize += remainingQty;
+                console.log(`Opening SHORT position: ${remainingQty} @ ${price}`);
+              }
+            } 
+            // Otherwise just add to short position
+            else {
+              if (shortPositionSize === 0) {
+                shortEntryTime = timestamp;
+              }
+              shortEntryTotal += price * qty;
+              shortPositionSize += qty;
+              console.log(`Opening/adding to SHORT position: ${qty} @ ${price}`);
+            }
+          }
+        } catch (error) {
+          console.error("Error processing order:", error);
+          errors.push(`Error processing order: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      });
+      
+      // Handle remaining open positions
+      if (longPositionSize > 0) {
+        const avgEntry = longEntryTotal / longPositionSize;
+        console.log(`Adding open LONG position: ${longPositionSize} @ ${avgEntry}`);
+        
+        validTrades.push({
+          id: crypto.randomUUID(),
+          symbol,
+          direction: "LONG",
+          entryDate: longEntryTime!.toISOString(),
+          entryPrice: avgEntry,
+          quantity: longPositionSize,
+          notes: "",
+          tags: [],
+          accountId: selectedAccount
+        });
+      }
+      
+      if (shortPositionSize > 0) {
+        const avgEntry = shortEntryTotal / shortPositionSize;
+        console.log(`Adding open SHORT position: ${shortPositionSize} @ ${avgEntry}`);
+        
+        validTrades.push({
+          id: crypto.randomUUID(),
+          symbol,
+          direction: "SHORT",
+          entryDate: shortEntryTime!.toISOString(),
+          entryPrice: avgEntry,
+          quantity: shortPositionSize,
+          notes: "",
+          tags: [],
+          accountId: selectedAccount
+        });
       }
     });
   };
@@ -676,11 +873,45 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
       setParsedTrades([]);
       setStep(1);
 
-      // Update selected account
-      toggleAccount(selectedAccount);
+      // Update selected account in the filter if checkbox is checked
+      if (autoSelectInFilter && selectedAccount !== "new-account") {
+        // First, get current selected accounts from localStorage
+        const currentSelectedAccounts = JSON.parse(
+          localStorage.getItem('tradingJournalSelectedAccounts') || '[]'
+        );
+        
+        // Add the current account if not already included
+        if (!currentSelectedAccounts.includes(selectedAccount)) {
+          const updatedSelectedAccounts = [...currentSelectedAccounts, selectedAccount];
+          
+          // Update localStorage directly
+          localStorage.setItem(
+            'tradingJournalSelectedAccounts', 
+            JSON.stringify(updatedSelectedAccounts)
+          );
+          
+          // Dispatch a custom event to notify components to refresh
+          window.dispatchEvent(new CustomEvent('account-selection-change', { 
+            detail: { selectedAccounts: updatedSelectedAccounts }
+          }));
+        }
+        
+        // Force the calendar and other components to refresh
+        window.dispatchEvent(new Event('storage'));
+        
+        // Dispatch a custom event for trades to refresh
+        window.dispatchEvent(new CustomEvent('trades-updated'));
+      }
 
-      // Redirect to trades page
-      router.push("/trades");
+      // Close the dialog using the onClose prop if available
+      if (onClose) {
+        onClose();
+      } else {
+        setDialogOpen(false);
+      }
+
+      // Redirect to trades page with a refresh flag to ensure components update
+      router.push("/trades?refresh=" + Date.now());
     }
   };
 
@@ -709,17 +940,19 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
     setSelectedAccountId("new-account");
     setParsedTrades([]);
     setStep(1);
+    
+    // Close dialog using onClose prop if available
+    if (onClose) {
+      onClose();
+    } else {
+      setDialogOpen(false);
+    }
   };
 
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button id="csv-import-button" variant="outline">
-          <Upload className="mr-2 h-4 w-4" />
-          Import
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
+  // Function to render dialog content
+  const renderDialogContent = () => {
+    return (
+      <>
         <DialogHeader>
           <DialogTitle className="text-xl">Import Trades</DialogTitle>
           <DialogDescription>
@@ -732,64 +965,29 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
             <div className="space-y-3">
               <h4 className="font-medium text-base">Select Trading Platform</h4>
               
-              <Tabs defaultValue="retail" value={platformTab} onValueChange={setPlatformTab} className="w-full">
-                <TabsList className="w-full grid grid-cols-2">
-                  <TabsTrigger value="retail">Retail Brokers</TabsTrigger>
-                  <TabsTrigger value="platforms">Trading Platforms</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="retail" className="pt-3">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {PLATFORM_CATEGORIES[0].platforms.map(p => (
-                      <Card 
-                        key={p}
-                        className={`cursor-pointer hover:border-primary transition-all ${platform === p ? 'border-2 border-primary ring-2 ring-primary/20' : ''}`}
-                        onClick={() => setPlatform(p)}
-                      >
-                        <CardContent className="p-4 flex items-center gap-3">
-                          <div className="flex-shrink-0">
-                            {PLATFORM_ICONS[p]}
-                          </div>
-                          <div className="flex-grow">
-                            <h4 className="font-medium">{p}</h4>
-                          </div>
-                          {platform === p && (
-                            <div className="flex-shrink-0">
-                              <Check className="h-4 w-4 text-primary" />
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="platforms" className="pt-3">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {PLATFORM_CATEGORIES[1].platforms.map(p => (
-                      <Card 
-                        key={p}
-                        className={`cursor-pointer hover:border-primary transition-all ${platform === p ? 'border-2 border-primary ring-2 ring-primary/20' : ''}`}
-                        onClick={() => setPlatform(p)}
-                      >
-                        <CardContent className="p-4 flex items-center gap-3">
-                          <div className="flex-shrink-0">
-                            {PLATFORM_ICONS[p]}
-                          </div>
-                          <div className="flex-grow">
-                            <h4 className="font-medium">{p}</h4>
-                          </div>
-                          {platform === p && (
-                            <div className="flex-shrink-0">
-                              <Check className="h-4 w-4 text-primary" />
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </TabsContent>
-              </Tabs>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {PLATFORM_CATEGORIES[0].platforms.map(p => (
+                  <Card 
+                    key={p}
+                    className={`cursor-pointer hover:border-primary transition-all ${platform === p ? 'border-2 border-primary ring-2 ring-primary/20' : ''}`}
+                    onClick={() => setPlatform(p)}
+                  >
+                    <CardContent className="p-4 flex items-center gap-3">
+                      <div className="flex-shrink-0">
+                        {PLATFORM_ICONS[p]}
+                      </div>
+                      <div className="flex-grow">
+                        <h4 className="font-medium">{p}</h4>
+                      </div>
+                      {platform === p && (
+                        <div className="flex-shrink-0">
+                          <Check className="h-4 w-4 text-primary" />
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
               
               {platform && (
                 <Badge variant="outline" className="mt-1 py-1 px-2">
@@ -797,6 +995,8 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
                 </Badge>
               )}
             </div>
+
+            {platform && <PlatformInstructions platformName={platform} />}
 
             <div className="space-y-2 pt-2">
               <h4 className="font-medium text-base">Choose Account</h4>
@@ -915,18 +1115,21 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
                 <p className="text-sm text-muted-foreground mb-2">
                   Upload a CSV file from {platform ? platform : 'a supported trading platform'}
                 </p>
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  id="csv-upload"
-                />
-                <label htmlFor="csv-upload">
-                  <Button variant="secondary" asChild>
-                    <span>Select CSV File</span>
-                  </Button>
-                </label>
+                
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.csv';
+                    input.onchange = handleFileSelect;
+                    input.click();
+                  }}
+                >
+                  Select CSV File
+                </Button>
+                
                 {selectedFile && (
                   <p className="mt-2 text-sm font-medium">
                     Selected: {selectedFile.name}
@@ -1026,19 +1229,45 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess?: (trades: Trad
               >
                 Back
               </Button>
-              <Button
-                onClick={handleImport}
-                disabled={parsedTrades.length === 0}
-              >
-                Import {parsedTrades.length} Trade{parsedTrades.length !== 1 ? 's' : ''} 
-                {selectedAccount !== "new-account" && accounts.find(a => a.id === selectedAccount) && 
-                  ` to ${accounts.find(a => a.id === selectedAccount)?.name}`}
-              </Button>
+              <div className="space-y-3 flex flex-col items-end">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="auto-select-account"
+                    checked={autoSelectInFilter}
+                    onChange={(e) => setAutoSelectInFilter(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <label htmlFor="auto-select-account" className="text-sm text-muted-foreground">
+                    Automatically select this account in the filter
+                  </label>
+                </div>
+                <Button
+                  onClick={handleImport}
+                  disabled={parsedTrades.length === 0}
+                >
+                  Import {parsedTrades.length} Trade{parsedTrades.length !== 1 ? 's' : ''} 
+                  {selectedAccount !== "new-account" && accounts.find(a => a.id === selectedAccount) && 
+                    ` to ${accounts.find(a => a.id === selectedAccount)?.name}`}
+                </Button>
+              </div>
             </div>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </>
+    );
+  };
+
+  return (
+    <>
+      {isOpen && (
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose?.()}>
+          <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
+            {renderDialogContent()}
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }
 

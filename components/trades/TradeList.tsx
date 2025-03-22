@@ -5,7 +5,7 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { Trade } from "@/types/trade";
 import { DataTable } from "@/components/ui/data-table";
 import { columns } from "./columns";
-import { useToast } from "@/components/providers/toast-provider";
+import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Filter } from "lucide-react";
 

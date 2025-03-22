@@ -1,37 +1,34 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { 
-  Toast, 
-  ToastProvider, 
-  ToastViewport, 
-  ToastTitle, 
+import {
+  Toast,
+  ToastClose,
   ToastDescription,
-  ToastClose
+  ToastProvider,
+  ToastTitle,
+  ToastViewport,
 } from "@/components/ui/toast"
-import { useToast } from "@/components/providers/toast-provider"
+import { useToast } from "@/components/ui/use-toast"
 
 export function Toaster() {
   const { toasts } = useToast()
-  const [isMounted, setIsMounted] = useState(false)
-
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
-  if (!isMounted) return null
 
   return (
     <ToastProvider>
-      {toasts.map(({ id, title, description, variant }) => (
-        <Toast key={id} variant={variant}>
-          <div className="grid gap-1">
-            {title && <ToastTitle>{title}</ToastTitle>}
-            {description && <ToastDescription>{description}</ToastDescription>}
-          </div>
-          <ToastClose />
-        </Toast>
-      ))}
+      {toasts.map(function ({ id, title, description, action, ...props }) {
+        return (
+          <Toast key={id} {...props}>
+            <div className="grid gap-1">
+              {title && <ToastTitle>{title}</ToastTitle>}
+              {description && (
+                <ToastDescription>{description}</ToastDescription>
+              )}
+            </div>
+            {action}
+            <ToastClose />
+          </Toast>
+        )
+      })}
       <ToastViewport />
     </ToastProvider>
   )

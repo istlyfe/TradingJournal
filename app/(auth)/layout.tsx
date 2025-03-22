@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css";
+import "../globals.css";
 import "@/components/ui/custom-styles.css";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ThemeStyles } from "@/components/theme/theme-styles";
@@ -9,11 +9,11 @@ import { Toaster } from "@/components/ui/toaster";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Trading Journal",
-  description: "Track your trading performance",
+  title: "Login - Trading Journal",
+  description: "Login to your Trading Journal account",
 };
 
-export default function RootLayout({
+export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -53,10 +53,12 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ThemeStyles />
-          {children}
+          <div className="min-h-screen flex items-center justify-center bg-background">
+            {children}
+          </div>
           <Toaster />
         </ThemeProvider>
       </body>
     </html>
   );
-}
+} 

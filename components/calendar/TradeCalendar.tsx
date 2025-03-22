@@ -25,15 +25,45 @@ export function TradeCalendar() {
   
   // Load trades
   useEffect(() => {
-    const storedTrades = localStorage.getItem('tradingJournalTrades');
-    if (storedTrades) {
-      try {
-        const parsedTrades = JSON.parse(storedTrades);
-        setTrades(parsedTrades);
-      } catch (error) {
-        console.error("Error parsing trades from localStorage:", error);
+    const loadTrades = () => {
+      const storedTrades = localStorage.getItem('tradingJournalTrades');
+      if (storedTrades) {
+        try {
+          const parsedTrades = JSON.parse(storedTrades);
+          setTrades(parsedTrades);
+        } catch (error) {
+          console.error("Error parsing trades from localStorage:", error);
+        }
       }
-    }
+    };
+    
+    // Initial load
+    loadTrades();
+    
+    // Set up event listener for trade updates
+    const handleTradesUpdated = () => {
+      console.log("Trades updated event received, refreshing calendar");
+      loadTrades();
+      setForceUpdate(prev => prev + 1);
+    };
+    
+    // Listen for storage events (changes from other tabs)
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === 'tradingJournalTrades') {
+        console.log("Trade storage updated, refreshing calendar");
+        loadTrades();
+        setForceUpdate(prev => prev + 1);
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('trades-updated', handleTradesUpdated);
+    window.addEventListener('storage', handleStorageEvent);
+    
+    return () => {
+      window.removeEventListener('trades-updated', handleTradesUpdated);
+      window.removeEventListener('storage', handleStorageEvent);
+    };
   }, []);
   
   // Keep a local copy of selected accounts synchronized with localStorage

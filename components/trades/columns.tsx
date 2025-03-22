@@ -1,10 +1,11 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
+import { Trade } from "@/types/trade";
+import { Badge } from "@/components/ui/badge";
+import { format } from "date-fns";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Trade } from "@/types/trade";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export const columns: ColumnDef<Trade>[] = [
@@ -20,16 +21,6 @@ export const columns: ColumnDef<Trade>[] = [
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
           className="trade-table-checkbox"
-          style={{ 
-            width: '16px', 
-            height: '16px', 
-            minWidth: '16px', 
-            minHeight: '16px',
-            maxWidth: '16px', 
-            maxHeight: '16px',
-            borderWidth: '1px',
-            aspectRatio: '1/1'
-          }}
         />
       </div>
     ),
@@ -40,16 +31,6 @@ export const columns: ColumnDef<Trade>[] = [
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
           className="trade-table-checkbox"
-          style={{ 
-            width: '16px', 
-            height: '16px', 
-            minWidth: '16px', 
-            minHeight: '16px',
-            maxWidth: '16px', 
-            maxHeight: '16px',
-            borderWidth: '1px',
-            aspectRatio: '1/1'
-          }}
         />
       </div>
     ),
@@ -69,16 +50,23 @@ export const columns: ColumnDef<Trade>[] = [
         </Button>
       );
     },
+    cell: ({ row }) => {
+      const symbol = row.getValue("symbol") as string;
+      return <div className="font-medium">{symbol}</div>;
+    },
   },
   {
     accessorKey: "direction",
     header: "Direction",
     cell: ({ row }) => {
-      const direction = row.getValue("direction") as string;
+      const direction = row.getValue("direction") as "long" | "short";
       return (
-        <div className={direction === "LONG" ? "text-green-600" : "text-red-600"}>
+        <Badge 
+          variant={direction === "long" ? "default" : "destructive"}
+          className="capitalize"
+        >
           {direction}
-        </div>
+        </Badge>
       );
     },
   },
@@ -96,28 +84,95 @@ export const columns: ColumnDef<Trade>[] = [
       );
     },
     cell: ({ row }) => {
-      return formatDateTime(row.getValue("entryDate"));
+      const date = row.getValue("entryDate");
+      if (!date) return null;
+      return <div>{format(new Date(date as string), "MMM d, yyyy")}</div>;
     },
+    sortingFn: "datetime",
+  },
+  {
+    accessorKey: "exitDate",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Exit Date
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const date = row.getValue("exitDate");
+      if (!date) return <div className="text-muted-foreground">Open</div>;
+      return <div>{format(new Date(date as string), "MMM d, yyyy")}</div>;
+    },
+    sortingFn: "datetime",
   },
   {
     accessorKey: "entryPrice",
-    header: "Entry Price",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Entry Price
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
     cell: ({ row }) => {
-      const amount = row.getValue("entryPrice");
-      return formatCurrency(amount as number);
+      const price = parseFloat(row.getValue("entryPrice"));
+      const formatted = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+      }).format(price);
+      return <div>{formatted}</div>;
     },
   },
   {
     accessorKey: "exitPrice",
-    header: "Exit Price",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Exit Price
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
     cell: ({ row }) => {
-      const amount = row.getValue("exitPrice");
-      return amount ? formatCurrency(parseFloat(amount as string)) : "-";
+      const price = row.getValue("exitPrice");
+      if (!price) return <div className="text-muted-foreground">-</div>;
+      
+      const formatted = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+      }).format(parseFloat(price as string));
+      return <div>{formatted}</div>;
     },
   },
   {
     accessorKey: "quantity",
-    header: "Quantity",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Quantity
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const quantity = parseFloat(row.getValue("quantity"));
+      return <div>{quantity.toLocaleString()}</div>;
+    },
   },
   {
     accessorKey: "pnl",
@@ -133,10 +188,32 @@ export const columns: ColumnDef<Trade>[] = [
       );
     },
     cell: ({ row }) => {
-      const amount = row.getValue("pnl") as number;
+      const trade = row.original;
+      let pnl = 0;
+      
+      if (trade.pnl !== undefined) {
+        pnl = parseFloat(trade.pnl.toString());
+      } else if (trade.exitPrice && trade.entryPrice && trade.quantity) {
+        const entryPrice = parseFloat(trade.entryPrice);
+        const exitPrice = parseFloat(trade.exitPrice);
+        const quantity = parseFloat(trade.quantity);
+        
+        if (trade.direction === "long") {
+          pnl = (exitPrice - entryPrice) * quantity;
+        } else {
+          pnl = (entryPrice - exitPrice) * quantity;
+        }
+      }
+      
+      const formatted = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        signDisplay: "auto",
+      }).format(pnl);
+      
       return (
-        <div className={amount >= 0 ? "text-green-600" : "text-red-600"}>
-          {formatCurrency(amount)}
+        <div className={pnl >= 0 ? "text-green-500 font-medium" : "text-red-500 font-medium"}>
+          {formatted}
         </div>
       );
     },

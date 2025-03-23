@@ -3,6 +3,9 @@ import { sign } from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 
+// Specify Node.js runtime
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   try {
     console.log('Demo login request received');

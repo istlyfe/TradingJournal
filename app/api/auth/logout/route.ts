@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
-export async function POST() {
+// Specify Node.js runtime
+export const runtime = 'nodejs';
+
+export async function POST(request: NextRequest) {
   try {
     // Clear the access token cookie
     cookies().set({

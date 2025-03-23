@@ -15,6 +15,10 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['bcryptjs', 'jsonwebtoken']
   },
+  // Explicitly set all API routes to use Node.js runtime
+  serverRuntimeConfig: {
+    PROJECT_ROOT: __dirname
+  },
   images: {
     unoptimized: true,
     domains: ['images.unsplash.com'],

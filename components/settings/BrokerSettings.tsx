@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, RefreshCw, Trash2, Link, Link2Off, ExternalLink, CreditCard } from "lucide-react";
+import { Plus, RefreshCw, Download, Unplug, Plug, Trash } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,12 +14,16 @@ import { BrokerType, BrokerCredentials } from "@/types/broker";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
+import { AccountSelector } from "@/components/accounts/AccountSelector";
+import { ServerCog } from "lucide-react";
 
 export function BrokerSettings() {
   const { brokers, addBroker, updateBroker, removeBroker, connectBroker, disconnectBroker, importTradesFromBroker } = useBrokers();
   const { accounts } = useAccounts();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
+  const [isDisconnectDialogOpen, setIsDisconnectDialogOpen] = useState(false);
+  const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
   const [selectedBrokerType, setSelectedBrokerType] = useState<BrokerType | ''>('');
@@ -33,6 +36,7 @@ export function BrokerSettings() {
   const [importStartDate, setImportStartDate] = useState('');
   const [importEndDate, setImportEndDate] = useState('');
   const { toast } = useToast();
+  const [selectedBroker, setSelectedBroker] = useState<Broker | null>(null);
   
   // Handle adding a new broker
   const handleAddBroker = () => {
@@ -209,143 +213,115 @@ export function BrokerSettings() {
   };
   
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-medium">Broker Connections</h2>
-          <p className="text-muted-foreground">
-            Connect to your brokers to automatically import trades.
-          </p>
-        </div>
-        
-        <Button onClick={() => setIsAddDialogOpen(true)} className="mt-2 sm:mt-0">
+    <div className="space-y-6">
+      <div className="rounded-md bg-muted p-4">
+        <h3 className="text-base font-medium mb-2">Broker Connections</h3>
+        <p className="text-sm text-muted-foreground">
+          Connect to your trading platforms to import trades automatically.
+        </p>
+      </div>
+      
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium">My Brokers</h3>
+        <Button 
+          onClick={() => setIsAddDialogOpen(true)}
+          size="sm"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
+        >
           <Plus className="mr-2 h-4 w-4" />
           Add Broker
         </Button>
       </div>
       
-      {brokers.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {brokers.map((broker) => {
-            const definition = getBrokerDefinition(broker.broker);
-            const linkedAccount = broker.accountId 
-              ? accounts.find(a => a.id === broker.accountId) 
-              : null;
-            
-            return (
-              <Card key={broker.id}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{broker.name}</CardTitle>
-                    <Badge variant={broker.isConnected ? "default" : "outline"}>
-                      {broker.isConnected ? "Connected" : "Not Connected"}
-                    </Badge>
-                  </div>
-                  <CardDescription>{definition.description}</CardDescription>
-                </CardHeader>
-                
-                <CardContent className="pb-2 text-sm">
-                  <div className="space-y-2">
-                    {broker.lastSynced && (
-                      <div>
-                        <span className="text-muted-foreground">Last Synced:</span>{" "}
-                        {new Date(broker.lastSynced).toLocaleString()}
-                      </div>
-                    )}
-                    
-                    {linkedAccount && (
-                      <div className="flex items-center text-xs">
-                        <CreditCard className="h-3 w-3 mr-1 text-muted-foreground" />
-                        <span className="text-muted-foreground">Linked to account:</span>{" "}
-                        <Badge variant="outline" className="ml-1">
-                          {linkedAccount.name}
-                        </Badge>
-                      </div>
-                    )}
-                    
-                    {!broker.isConnected && (
-                      <div className="text-amber-500 text-xs">
-                        Not connected. Connect to import trades.
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-                
-                <CardFooter className="flex flex-wrap gap-2">
-                  {broker.isConnected ? (
-                    <>
-                      <Button size="sm" onClick={() => openImportDialog(broker.id)}>
-                        <RefreshCw className="mr-2 h-3 w-3" />
-                        Import Trades
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        onClick={() => handleDisconnectBroker(broker.id)}
-                      >
-                        <Link2Off className="mr-2 h-3 w-3" />
-                        Disconnect
-                      </Button>
-                    </>
-                  ) : (
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={() => openConnectDialog(broker.id)}
-                    >
-                      <Link className="mr-2 h-3 w-3" />
-                      Connect
-                    </Button>
-                  )}
-                  
-                  <Button 
-                    size="sm" 
-                    variant="secondary"
-                    onClick={() => openAccountLinkDialog(broker.id)}
-                  >
-                    <CreditCard className="mr-2 h-3 w-3" />
-                    Link Account
-                  </Button>
-                  
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    className="text-destructive"
-                    onClick={() => handleRemoveBroker(broker.id)}
-                  >
-                    <Trash2 className="mr-2 h-3 w-3" />
-                    Remove
-                  </Button>
-                  
-                  {definition.docUrl && (
-                    <Button 
-                      size="sm" 
-                      variant="ghost" 
-                      className="ml-auto"
-                      asChild
-                    >
-                      <a href={definition.docUrl} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="mr-2 h-3 w-3" />
-                        Docs
-                      </a>
-                    </Button>
-                  )}
-                </CardFooter>
-              </Card>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="flex h-40 flex-col items-center justify-center rounded-md border border-dashed p-8 text-center">
-          <div className="text-muted-foreground">No broker connections</div>
-          <Button
-            variant="link"
-            size="sm"
-            className="mt-2"
+      {brokers.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 border rounded-lg border-dashed bg-background/30 px-4">
+          <ServerCog className="h-16 w-16 text-muted-foreground mb-4 opacity-70" />
+          <h3 className="text-base font-medium mb-2">No brokers connected</h3>
+          <p className="text-sm text-muted-foreground text-center max-w-md mb-6">
+            Connect to your trading platforms to automatically import trades and track your performance.
+          </p>
+          <Button 
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={() => setIsAddDialogOpen(true)}
           >
-            Add your first broker connection
+            <Plus className="mr-2 h-4 w-4" />
+            Add Broker
           </Button>
+        </div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {brokers.map((broker) => (
+            <div key={broker.id} className="bg-background border border-border rounded-lg overflow-hidden">
+              <div className="p-4 border-b border-border flex justify-between items-center">
+                <div>
+                  <h3 className="font-medium mb-1">{broker.name}</h3>
+                  {broker.type && <p className="text-sm text-muted-foreground">Type: {broker.type}</p>}
+                </div>
+                <Badge className={broker.isConnected ? "bg-green-500/20 text-green-500 hover:bg-green-500/30" : "bg-muted text-muted-foreground"}>
+                  {broker.isConnected ? "Connected" : "Disconnected"}
+                </Badge>
+              </div>
+              
+              <div className="px-4 py-3">
+                {broker.lastSync && <p className="text-sm text-muted-foreground">Last synced: {broker.lastSync}</p>}
+              </div>
+              
+              <div className="px-4 py-3 border-t border-border bg-muted/30 flex justify-end gap-2">
+                {broker.isConnected ? (
+                  <>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="bg-transparent border-border hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => {
+                        setSelectedBroker(broker);
+                        setIsImportDialogOpen(true);
+                      }}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Import
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="bg-transparent border-border hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => {
+                        setSelectedBroker(broker);
+                        setIsDisconnectDialogOpen(true);
+                      }}
+                    >
+                      <Unplug className="mr-2 h-4 w-4" />
+                      Disconnect
+                    </Button>
+                  </>
+                ) : (
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="bg-transparent border-border hover:bg-accent hover:text-accent-foreground"
+                    onClick={() => {
+                      setSelectedBroker(broker);
+                      setIsConnectDialogOpen(true);
+                    }}
+                  >
+                    <Plug className="mr-2 h-4 w-4" />
+                    Connect
+                  </Button>
+                )}
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  className="bg-transparent text-destructive border-destructive hover:bg-destructive/10"
+                  onClick={() => {
+                    setSelectedBroker(broker);
+                    setIsRemoveDialogOpen(true);
+                  }}
+                >
+                  <Trash className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
       
@@ -366,13 +342,15 @@ export function BrokerSettings() {
                 value={selectedBrokerType} 
                 onValueChange={(value) => setSelectedBrokerType(value as BrokerType)}
               >
-                <SelectTrigger id="broker-type">
+                <SelectTrigger id="broker-type" className="w-full">
                   <SelectValue placeholder="Select a broker" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[300px] select-content-fix z-50">
                   {Object.entries(brokerDefinitions).map(([id, def]) => (
-                    <SelectItem key={id} value={id}>
-                      {def.name}
+                    <SelectItem key={id} value={id} className="cursor-pointer">
+                      <div className="flex items-center">
+                        <span>{def.name}</span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -405,6 +383,7 @@ export function BrokerSettings() {
             <Button 
               onClick={handleAddBroker}
               disabled={!selectedBrokerType || !newBrokerName}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               Add Broker
             </Button>
@@ -439,6 +418,7 @@ export function BrokerSettings() {
             <Button 
               onClick={handleConnectBroker}
               disabled={connecting}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {connecting ? "Connecting..." : "Connect"}
             </Button>
@@ -491,6 +471,7 @@ export function BrokerSettings() {
             <Button 
               onClick={handleImportTrades}
               disabled={importing}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {importing ? "Importing..." : "Import Trades"}
             </Button>
@@ -498,48 +479,39 @@ export function BrokerSettings() {
         </DialogContent>
       </Dialog>
       
-      {/* Link Account Dialog */}
+      {/* Account Link Dialog */}
       <Dialog open={isAccountDialogOpen} onOpenChange={setIsAccountDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Link to Account</DialogTitle>
+            <DialogTitle>Link to Trading Account</DialogTitle>
             <DialogDescription>
-              Link this broker connection to an account. Imported trades will be associated with this account.
+              Link this broker to a specific trading account for better organization and importing.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
+          <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="account">Select Account</Label>
-              <Select 
-                value={selectedAccountId} 
-                onValueChange={setSelectedAccountId}
-              >
-                <SelectTrigger id="account">
-                  <SelectValue placeholder="Select an account" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None (Unlink)</SelectItem>
-                  {accounts.filter(a => !a.isArchived).map(account => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Trading Account</Label>
+              <div style={{ position: 'relative', zIndex: 999 }}>
+                <AccountSelector
+                  selectedId={selectedAccountId === 'none' ? '' : selectedAccountId}
+                  onSelect={(value) => setSelectedAccountId(value || 'none')}
+                  allowCreateNew={false}
+                  fullWidth={true}
+                />
+              </div>
             </div>
-            
-            <p className="text-xs text-muted-foreground">
-              Linking a broker to an account will associate all imported trades with that account.
-            </p>
           </div>
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAccountDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleLinkAccount}>
-              {selectedAccountId !== 'none' ? "Link Account" : "Unlink Account"}
+            <Button 
+              onClick={handleLinkAccount}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Link Account
             </Button>
           </DialogFooter>
         </DialogContent>

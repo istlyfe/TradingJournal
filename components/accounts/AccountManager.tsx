@@ -84,27 +84,6 @@ export function AccountManager() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {/* Add new account */}
-          <div className="flex flex-col gap-2">
-            <Input
-              placeholder="Account Name"
-              value={newAccountName}
-              onChange={(e) => setNewAccountName(e.target.value)}
-            />
-            <Input
-              placeholder="Description (optional)"
-              value={newAccountDescription}
-              onChange={(e) => setNewAccountDescription(e.target.value)}
-            />
-            <div 
-              onClick={addAccount} 
-              className="w-full flex items-center justify-center gap-4 p-10 mt-4 text-xl font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md cursor-pointer"
-            >
-              <Plus className="w-10 h-10" />
-              <span>Add Account</span>
-            </div>
-          </div>
-          
           {/* Account list header */}
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-muted-foreground">Your Accounts</h3>
@@ -152,6 +131,28 @@ export function AccountManager() {
                 </div>
               </div>
             ))}
+          </div>
+          
+          {/* Add new account */}
+          <div className="flex flex-col gap-2 mt-6 pt-4 border-t">
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Add New Account</h3>
+            <Input
+              placeholder="Account Name"
+              value={newAccountName}
+              onChange={(e) => setNewAccountName(e.target.value)}
+            />
+            <Input
+              placeholder="Description (optional)"
+              value={newAccountDescription}
+              onChange={(e) => setNewAccountDescription(e.target.value)}
+            />
+            <div 
+              onClick={addAccount} 
+              className="w-full flex items-center justify-center gap-4 p-4 mt-2 text-base font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md cursor-pointer"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Add Account</span>
+            </div>
           </div>
         </div>
       </CardContent>

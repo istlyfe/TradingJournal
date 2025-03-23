@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,21 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState("");
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams?.get('redirect') || '/dashboard';
   const { toast } = useToast();
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, isAuthenticated } = useAuth();
+
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    if (isAuthenticated && !isLoading) {
+      router.push(redirectPath);
+    }
+  }, [isAuthenticated, isLoading, router, redirectPath]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,14 +56,46 @@ export default function LoginPage() {
           description: "You have successfully logged in",
         });
         
-        // Redirect to dashboard after successful login
-        router.push("/dashboard");
+        // Force navigation to dashboard or redirect path
+        window.location.href = redirectPath;
       } else {
         setFormError("Invalid email or password. Please check your credentials and try again.");
       }
     } catch (error) {
       console.error("Login error:", error);
       setFormError("There was an error logging in. Please try again later.");
+    }
+  };
+
+  // Demo login handler
+  const handleDemoLogin = async () => {
+    try {
+      setIsDemoLoading(true);
+      setFormError("");
+      
+      const response = await fetch('/api/auth/demo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        toast({
+          title: "Demo mode activated!",
+          description: "You're now using a demo account with sample data",
+        });
+        
+        // Force navigation to dashboard or redirect path
+        window.location.href = redirectPath;
+      } else {
+        setFormError("Failed to login with demo account. Please try again.");
+      }
+    } catch (error) {
+      console.error("Demo login error:", error);
+      setFormError("There was an error with the demo login. Please try again later.");
+    } finally {
+      setIsDemoLoading(false);
     }
   };
 
@@ -91,7 +135,7 @@ export default function LoginPage() {
                 placeholder="your.email@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
+                disabled={isLoading || isDemoLoading}
                 className="focus:border-primary"
                 autoComplete="email"
                 required
@@ -114,7 +158,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
+                disabled={isLoading || isDemoLoading}
                 className="focus:border-primary"
                 autoComplete="current-password"
                 required
@@ -126,7 +170,7 @@ export default function LoginPage() {
             <Button 
               type="submit" 
               className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-700" 
-              disabled={isLoading}
+              disabled={isLoading || isDemoLoading}
             >
               {isLoading ? (
                 <>
@@ -135,6 +179,28 @@ export default function LoginPage() {
                 </>
               ) : (
                 "Sign In"
+              )}
+            </Button>
+            
+            <div className="relative flex items-center justify-center w-full">
+              <div className="border-t border-gray-200 dark:border-gray-700 w-full"></div>
+              <span className="bg-card px-2 text-xs text-muted-foreground absolute">OR</span>
+            </div>
+            
+            <Button 
+              type="button" 
+              variant="outline"
+              className="w-full"
+              onClick={handleDemoLogin}
+              disabled={isLoading || isDemoLoading}
+            >
+              {isDemoLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading Demo...
+                </>
+              ) : (
+                "Try Demo Mode"
               )}
             </Button>
             

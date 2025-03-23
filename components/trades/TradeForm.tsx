@@ -23,7 +23,7 @@ export default function TradeForm() {
   
   const [formData, setFormData] = useState({
     symbol: "",
-    direction: "LONG", // LONG or SHORT
+    direction: "long", // long or short
     entryDate: "",
     entryPrice: "",
     exitDate: "",
@@ -79,7 +79,7 @@ export default function TradeForm() {
     
     // Parse values
     const symbol = formData.symbol.trim();
-    const direction = formData.direction as "LONG" | "SHORT";
+    const direction = formData.direction as 'long' | 'short';
     const entryPrice = parseFloat(formData.entryPrice);
     const exitPrice = parseFloat(formData.exitPrice);
     const quantity = parseFloat(formData.quantity);
@@ -177,8 +177,8 @@ export default function TradeForm() {
                   <SelectValue placeholder="Select direction" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="LONG">Long</SelectItem>
-                  <SelectItem value="SHORT">Short</SelectItem>
+                  <SelectItem value="long">Long</SelectItem>
+                  <SelectItem value="short">Short</SelectItem>
                 </SelectContent>
               </Select>
             </div>

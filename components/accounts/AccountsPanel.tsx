@@ -1,24 +1,19 @@
 "use client";
 
-import { useState, useEffect } from 'react';
 import { useAccounts } from '@/hooks/useAccounts';
-import { Plus, Check, X } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Plus, Check, X, Filter, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { AccountFilter, ACCOUNT_CREATED } from './AccountFilter';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle,
-  DialogDescription,
-  DialogFooter
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogHeader, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+import { cn } from "@/lib/utils";
+
+export const ACCOUNT_SELECTION_CHANGE = 'account-selection-change';
 
 // Pre-defined account colors
-const ACCOUNT_COLORS = [
+const accountColors = [
   '#7C3AED', // Purple
   '#2563EB', // Blue
   '#10B981', // Green
@@ -32,124 +27,187 @@ const ACCOUNT_COLORS = [
 ];
 
 export function AccountsPanel() {
-  const { accounts, createAccount } = useAccounts();
+  const { accounts, createAccount, selectedAccounts, toggleAccount, setSelectedAccounts } = useAccounts();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
-  const [selectedColor, setSelectedColor] = useState(ACCOUNT_COLORS[0]);
+  const [newAccountColor, setNewAccountColor] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const { toast } = useToast();
   const [forceRefresh, setForceRefresh] = useState(0);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Update when accounts change
   useEffect(() => {
-    // Force update when an account is created elsewhere in the app
-    const handleAccountCreated = () => {
-      setForceRefresh(prev => prev + 1);
-    };
-    
-    window.addEventListener(ACCOUNT_CREATED, handleAccountCreated);
-    
+    setForceRefresh(prev => prev + 1);
+  }, [accounts.length]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      window.removeEventListener(ACCOUNT_CREATED, handleAccountCreated);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
-  const handleCreateAccount = () => {
-    if (newAccountName.trim()) {
-      const newAccount = createAccount(newAccountName, selectedColor);
-      setNewAccountName('');
-      setSelectedColor(ACCOUNT_COLORS[0]);
-      setDialogOpen(false);
-      
-      // Force a refresh to ensure UI updates
-      setForceRefresh(prev => prev + 1);
-      
-      // Show success toast
-      toast({
-        title: "Account created",
-        description: `${newAccount.name} has been created and selected`,
-        duration: 3000,
-        variant: "success"
-      });
-    }
-  };
+  // Toggle all accounts at once
+  const toggleAllAccounts = useCallback(() => {
+    // Toggle selection state
+    const newSelection = selectedAccounts.length === accounts.length ? [] : accounts.map(a => a.id);
+    
+    // Update localStorage directly
+    localStorage.setItem('tradingJournalSelectedAccounts', JSON.stringify(newSelection));
+    
+    // Dispatch both event types to ensure all components update
+    window.dispatchEvent(new CustomEvent(ACCOUNT_SELECTION_CHANGE, { 
+      detail: { selectedAccounts: newSelection }
+    }));
+    
+    window.dispatchEvent(new CustomEvent('account-selection-change', { 
+      detail: { selectedAccounts: newSelection }
+    }));
+    
+    // Force global storage event for older components
+    window.dispatchEvent(new Event('storage'));
+    
+    // Update useAccounts hook state
+    setSelectedAccounts(newSelection);
+    
+    // Close the dropdown after a short delay
+    setTimeout(() => {
+      setDropdownOpen(false);
+    }, 150);
+  }, [accounts, selectedAccounts, setSelectedAccounts]);
+
+  // Handle individual account toggle
+  const handleToggleAccount = useCallback((accountId: string) => {
+    toggleAccount(accountId);
+    
+    // Manually dispatch events to ensure all components update
+    const newSelection = selectedAccounts.includes(accountId)
+      ? selectedAccounts.filter(id => id !== accountId)
+      : [...selectedAccounts, accountId];
+    
+    // Dispatch both event types
+    window.dispatchEvent(new CustomEvent(ACCOUNT_SELECTION_CHANGE, { 
+      detail: { selectedAccounts: newSelection }
+    }));
+    
+    window.dispatchEvent(new CustomEvent('account-selection-change', { 
+      detail: { selectedAccounts: newSelection }
+    }));
+    
+    // Force global storage event for older components
+    window.dispatchEvent(new Event('storage'));
+  }, [selectedAccounts, toggleAccount]);
+
+  const myAccounts = accounts.filter((account) => !account.isArchived);
+  const archivedAccounts = accounts.filter((account) => account.isArchived);
 
   return (
-    <div className="flex items-center gap-3">
-      <AccountFilter key={`account-filter-${forceRefresh}`} />
-      
-      <div 
-        onClick={() => setDialogOpen(true)}
-        className="flex items-center justify-center h-[40px] w-[40px] rounded-md border-2 border-primary bg-background hover:bg-accent cursor-pointer shadow-sm"
-        title="Create New Account"
+    <div className="account-dropdown" ref={dropdownRef}>
+      <Button
+        variant="outline"
+        role="combobox"
+        aria-expanded={dropdownOpen}
+        className={cn(
+          "w-full justify-between text-left",
+          dropdownOpen ? "border-primary" : ""
+        )}
+        onClick={() => setDropdownOpen(!dropdownOpen)}
       >
-        <Plus className="h-6 w-6" />
-      </div>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Account</DialogTitle>
-            <DialogDescription>
-              Add a new trading account to track your performance
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Account Name</Label>
-              <Input
-                id="name"
-                value={newAccountName}
-                onChange={(e) => setNewAccountName(e.target.value)}
-                placeholder="e.g., My Trading Account"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newAccountName.trim()) {
-                    handleCreateAccount();
-                  }
-                }}
-              />
+        <span className="truncate">
+          {selectedAccounts.length === 0
+            ? "Select accounts"
+            : selectedAccounts.length === 1
+            ? accounts.find((a) => a.id === selectedAccounts[0])?.name || "1 account"
+            : selectedAccounts.length === accounts.length
+            ? "All accounts"
+            : `${selectedAccounts.length} accounts`}
+        </span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+      
+      {dropdownOpen && (
+        <>
+          <div className="account-dropdown-content">
+            <div className="p-1">
+              <button
+                className={cn(
+                  "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
+                  selectedAccounts.length === accounts.length ? "font-medium" : ""
+                )}
+                onClick={toggleAllAccounts}
+              >
+                <div className={cn(
+                  "mr-2 h-5 w-5 border rounded-sm flex items-center justify-center",
+                  selectedAccounts.length === accounts.length ? "bg-primary border-primary" : "border-input"
+                )}>
+                  {selectedAccounts.length === accounts.length && (
+                    <Check className="h-3.5 w-3.5 text-primary-foreground" />
+                  )}
+                </div>
+                <span>All accounts</span>
+              </button>
             </div>
             
-            <div className="grid gap-2">
-              <Label>Account Color</Label>
-              <div className="flex flex-wrap gap-2">
-                {ACCOUNT_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => setSelectedColor(color)}
-                    className={`relative w-8 h-8 rounded-full transition-all ${
-                      selectedColor === color ? 'ring-2 ring-offset-2 ring-primary' : ''
-                    }`}
-                    style={{ backgroundColor: color }}
-                    title={`Select ${color} as account color`}
+            {myAccounts.length > 0 && (
+              <div className="p-1">
+                <div className="text-xs font-medium text-muted-foreground px-2 py-1">
+                  My accounts
+                </div>
+                {myAccounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="relative flex cursor-default select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground account-item"
+                    onClick={() => handleToggleAccount(account.id)}
                   >
-                    {selectedColor === color && (
-                      <Check className="absolute inset-0 m-auto h-4 w-4 text-white" />
-                    )}
-                  </button>
+                    <div className={cn(
+                      "mr-2 h-5 w-5 border rounded-sm flex items-center justify-center account-checkbox",
+                      selectedAccounts.includes(account.id) ? "bg-primary border-primary" : "border-input"
+                    )}>
+                      {selectedAccounts.includes(account.id) && (
+                        <Check className="h-3.5 w-3.5 text-primary-foreground" />
+                      )}
+                    </div>
+                    <span>{account.name}</span>
+                  </div>
                 ))}
               </div>
-            </div>
+            )}
+            
+            {archivedAccounts.length > 0 && (
+              <div className="p-1">
+                <div className="text-xs font-medium text-muted-foreground px-2 py-1">
+                  Archived accounts
+                </div>
+                {archivedAccounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="relative flex cursor-default select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground account-item"
+                    onClick={() => handleToggleAccount(account.id)}
+                  >
+                    <div className={cn(
+                      "mr-2 h-5 w-5 border rounded-sm flex items-center justify-center account-checkbox",
+                      selectedAccounts.includes(account.id) ? "bg-primary border-primary" : "border-input"
+                    )}>
+                      {selectedAccounts.includes(account.id) && (
+                        <Check className="h-3.5 w-3.5 text-primary-foreground" />
+                      )}
+                    </div>
+                    <span>{account.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleCreateAccount}
-              disabled={!newAccountName.trim()}
-            >
-              Create Account
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </>
+      )}
     </div>
   );
 } 

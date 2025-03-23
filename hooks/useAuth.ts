@@ -1,72 +1,16 @@
+"use client";
+
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Cookies from 'js-cookie';
 
 export interface AuthUser {
   id: string;
   name: string;
   email: string;
   createdAt: string;
+  accounts?: any[];
 }
-
-interface StoredUserData {
-  users: Record<string, AuthUser>;
-  currentUser: string | null;
-}
-
-// Initialize or get the users data structure
-const getUsersData = (): StoredUserData => {
-  if (typeof window === 'undefined') {
-    return { users: {}, currentUser: null };
-  }
-  
-  const stored = localStorage.getItem('tradingJournalUsers');
-  if (stored) {
-    try {
-      return JSON.parse(stored);
-    } catch (e) {
-      console.error('Error parsing stored users data', e);
-      return { users: {}, currentUser: null };
-    }
-  }
-  
-  return { users: {}, currentUser: null };
-};
-
-// Save users data to localStorage
-const saveUsersData = (data: StoredUserData): void => {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('tradingJournalUsers', JSON.stringify(data));
-    localStorage.setItem('isAuthenticated', data.currentUser ? 'true' : 'false');
-  }
-};
-
-// Generate a simple unique ID
-const generateId = (): string => {
-  return Date.now().toString(36) + Math.random().toString(36).substring(2);
-};
-
-// Create demo account if it doesn't exist
-const ensureDemoAccount = (): void => {
-  const usersData = getUsersData();
-  
-  // Check if demo account already exists
-  const demoExists = Object.values(usersData.users).some(
-    user => user.email === 'demo@example.com'
-  );
-  
-  if (!demoExists) {
-    // Create demo account
-    const demoId = generateId();
-    usersData.users[demoId] = {
-      id: demoId,
-      name: 'Demo User',
-      email: 'demo@example.com',
-      createdAt: new Date().toISOString(),
-    };
-    
-    saveUsersData(usersData);
-  }
-};
 
 export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -76,73 +20,84 @@ export function useAuth() {
 
   // Load authentication state
   useEffect(() => {
-    // Create demo account if needed
-    ensureDemoAccount();
+    // Don't run on server
+    if (typeof window === 'undefined') return;
     
-    const checkAuth = () => {
-      const usersData = getUsersData();
-      const isAuth = !!usersData.currentUser;
-      setIsAuthenticated(isAuth);
-      
-      if (isAuth && usersData.currentUser) {
-        setUser(usersData.users[usersData.currentUser]);
-      } else {
+    const checkAuth = async () => {
+      try {
+        // Check authentication with server
+        const response = await fetch('/api/auth/verify', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.isAuthenticated) {
+            setIsAuthenticated(true);
+            setUser(data.user || null);
+          } else {
+            setIsAuthenticated(false);
+            setUser(null);
+          }
+        } else {
+          // If the verify endpoint fails, assume not authenticated
+          setIsAuthenticated(false);
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error checking auth:', error);
+        setIsAuthenticated(false);
         setUser(null);
+      } finally {
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     };
     
     checkAuth();
     
-    // Listen for storage events
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'tradingJournalUsers' || e.key === 'isAuthenticated') {
-        checkAuth();
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
+    // Poll for authentication status
+    const interval = setInterval(checkAuth, 5 * 60 * 1000); // Check every 5 minutes
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
     };
   }, []);
 
   // Login function
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+    if (typeof window === 'undefined') return false;
+    
     setIsLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Call the login API endpoint
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
       
-      const usersData = getUsersData();
-      const userFound = Object.values(usersData.users).find(u => 
-        u.email.toLowerCase() === email.toLowerCase()
-      );
+      const data = await response.json();
       
-      // In a real app, you would verify the password hash here
-      // For demo, we don't actually check passwords
-      if (!userFound) {
+      if (!response.ok) {
+        console.error('Login error:', data.message);
         setIsLoading(false);
         return false;
       }
       
-      // Update current user
-      usersData.currentUser = userFound.id;
-      saveUsersData(usersData);
-      
-      setIsAuthenticated(true);
-      setUser(userFound);
-      
-      // Dispatch event for other tabs
-      window.dispatchEvent(new Event('auth-change'));
+      // Update auth state with the returned user
+      if (data.success && data.user) {
+        setIsAuthenticated(true);
+        setUser(data.user);
+      }
       
       setIsLoading(false);
-      return true;
+      return data.success;
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Login API error:', error);
       setIsLoading(false);
       return false;
     }
@@ -150,76 +105,71 @@ export function useAuth() {
 
   // Signup function
   const signup = useCallback(async (name: string, email: string, password: string): Promise<boolean> => {
+    if (typeof window === 'undefined') return false;
+    
     setIsLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Call the register API endpoint
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, email, password }),
+      });
       
-      const usersData = getUsersData();
+      const data = await response.json();
       
-      // Check if email already exists
-      const emailExists = Object.values(usersData.users).some(
-        u => u.email.toLowerCase() === email.toLowerCase()
-      );
-      
-      if (emailExists) {
+      if (!response.ok) {
+        console.error('Signup error:', data.message);
         setIsLoading(false);
         return false;
       }
       
-      // Create new user
-      const userId = generateId();
-      const newUser: AuthUser = {
-        id: userId,
-        name,
-        email,
-        createdAt: new Date().toISOString(),
-      };
-      
-      // In a real app, you would hash the password here
-      
-      // Add user to storage
-      usersData.users[userId] = newUser;
-      usersData.currentUser = userId;
-      saveUsersData(usersData);
-      
-      setIsAuthenticated(true);
-      setUser(newUser);
-      
-      // Dispatch event for other tabs
-      window.dispatchEvent(new Event('auth-change'));
+      // Update auth state with the returned user
+      if (data.success && data.user) {
+        setIsAuthenticated(true);
+        setUser(data.user);
+      }
       
       setIsLoading(false);
-      return true;
+      return data.success;
     } catch (error) {
-      console.error('Signup error:', error);
+      console.error('Signup API error:', error);
       setIsLoading(false);
       return false;
     }
   }, []);
 
   // Logout function
-  const logout = useCallback(() => {
-    const usersData = getUsersData();
-    usersData.currentUser = null;
-    saveUsersData(usersData);
+  const logout = useCallback(async (): Promise<boolean> => {
+    setIsLoading(true);
     
-    setIsAuthenticated(false);
-    setUser(null);
-    
-    // Dispatch event for other tabs
-    window.dispatchEvent(new Event('auth-change'));
-    
-    // Redirect to homepage after logout
-    router.push('/');
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        setIsAuthenticated(false);
+        setUser(null);
+        setIsLoading(false);
+        
+        // Navigate to login page
+        router.push('/login');
+        return true;
+      } else {
+        console.error('Logout failed');
+        setIsLoading(false);
+        return false;
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      setIsLoading(false);
+      return false;
+    }
   }, [router]);
-
-  // Get all users (for admin purposes)
-  const getAllUsers = useCallback((): AuthUser[] => {
-    const usersData = getUsersData();
-    return Object.values(usersData.users);
-  }, []);
 
   return {
     isAuthenticated,
@@ -227,7 +177,6 @@ export function useAuth() {
     isLoading,
     login,
     signup,
-    logout,
-    getAllUsers,
+    logout
   };
 } 

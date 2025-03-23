@@ -5,7 +5,6 @@ export interface JournalEntry {
   content: string;
   marketConditions?: string;
   sentiment?: 'bullish' | 'bearish' | 'neutral';
-  mood?: 'confident' | 'anxious' | 'calm' | 'frustrated' | 'focused' | 'distracted' | 'other';
   lessons?: string;
   relatedTradeIds?: string[]; // Optional related trades
   tags?: string[];

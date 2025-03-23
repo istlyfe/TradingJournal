@@ -1,0 +1,87 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  accounts      Account[]
+  trades        Trade[]
+  settings      Json?     // User preferences and settings
+}
+
+model Account {
+  id            String    @id @default(cuid())
+  name          String
+  color         String    @default("#7C3AED")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  isArchived    Boolean   @default(false)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades        Trade[]
+}
+
+model Trade {
+  id                String    @id @default(cuid())
+  symbol            String
+  direction         String    // "long" or "short"
+  entryDate         DateTime
+  entryPrice        Float
+  exitDate          DateTime?
+  exitPrice         Float?
+  quantity          Float
+  pnl               Float?
+  fees              Float?
+  strategy          String?
+  notes             String?
+  emotionalState    String?
+  tags              String[]  // Array of tags
+  source            String?   // Manual, Import, API, etc.
+  importSource      String?   // Platform name if imported
+  contractMultiplier Float?
+  
+  accountId         String
+  account           Account   @relation(fields: [accountId], references: [id])
+  
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// Store refresh tokens for secure authentication
+model RefreshToken {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  userId      String
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+}
+
+// Future implementation for performance metrics
+model PerformanceMetric {
+  id          String    @id @default(cuid())
+  userId      String
+  metricType  String    // "winRate", "profitFactor", etc.
+  timeframe   String    // "daily", "weekly", "monthly"
+  value       Float
+  date        DateTime
+  createdAt   DateTime  @default(now())
+}

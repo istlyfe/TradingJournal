@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { verifyToken } from './lib/auth';
 
 // Define routes that don't require authentication
 const publicRoutes = [
@@ -17,40 +19,75 @@ const isPublicRoute = (path: string) => {
 };
 
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  // Get the pathname from the URL
+  const path = request.nextUrl.pathname;
   
-  // Check for auth cookie/token
-  const isAuthenticated = request.cookies.has('isAuthenticated');
+  // Check if the path is a protected API route
+  const isApiRoute = path.startsWith('/api/');
+  const isAuthRoute = path.startsWith('/api/auth');
+  const isProtectedRoute = isApiRoute && !isAuthRoute;
   
-  // Allow access to public routes regardless of auth status
-  if (isPublicRoute(pathname)) {
+  // Check if the path is a protected page
+  const isProtectedPage = 
+    path.startsWith('/dashboard') || 
+    path.startsWith('/trades') || 
+    path.startsWith('/journal') || 
+    path.startsWith('/analytics') || 
+    path.startsWith('/accounts') || 
+    path.startsWith('/settings');
+
+  // If it's not a protected route or page, continue
+  if (!isProtectedRoute && !isProtectedPage) {
     return NextResponse.next();
   }
 
-  // If user is not authenticated and trying to access a protected route
-  if (!isAuthenticated) {
-    // Create a URL for the login page
-    const loginUrl = new URL('/login', request.url);
+  // Get the token from the cookies
+  const token = request.cookies.get('accessToken')?.value;
+
+  // If there's no token, redirect to login
+  if (!token) {
+    // For API routes, return unauthorized
+    if (isProtectedRoute) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      );
+    }
     
-    // Redirect unauthenticated users to login
-    return NextResponse.redirect(loginUrl);
+    // For pages, redirect to login
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Allow authenticated users to access protected routes
+  // Verify the token
+  const decoded = verifyToken(token);
+
+  // If token is invalid, redirect to login
+  if (!decoded) {
+    // For API routes, return unauthorized
+    if (isProtectedRoute) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid token' },
+        { status: 401 }
+      );
+    }
+    
+    // For pages, redirect to login
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // Continue with the request
   return NextResponse.next();
 }
 
-// Configure the middleware to run on specific paths
+// Only run middleware on specific paths
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - images/ (public image files)
-     * - fonts/ (public font files)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|images|fonts).*)',
+    '/dashboard/:path*',
+    '/trades/:path*',
+    '/journal/:path*',
+    '/analytics/:path*',
+    '/accounts/:path*',
+    '/settings/:path*',
+    '/api/:path*',
   ],
 }; 

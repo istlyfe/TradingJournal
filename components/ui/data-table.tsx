@@ -43,6 +43,7 @@ interface DataTableProps<TData, TValue> {
   onRowSelectionChange?: (rowIds: string[]) => void;
 }
 
+// Create a wrapper component for useReactTable to ensure hooks are used properly
 export function DataTable<TData, TValue>({
   columns,
   data,

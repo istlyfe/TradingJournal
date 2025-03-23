@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calculatePnL } from "@/lib/tradeService";
+import { prisma } from '@/lib/prisma';
+import { verifyToken } from '@/lib/auth';
 
 // Comment out for static export
 // export const dynamic = 'force-dynamic';
@@ -46,121 +48,267 @@ const mockTrades = [
   }
 ];
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+// GET a specific trade by ID
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const tradeId = params.id;
-    
-    // Find the trade in mock data
-    const trade = mockTrades.find(t => t.id === tradeId);
-    
-    if (!trade) {
-      return NextResponse.json({ error: "Trade not found" }, { status: 404 });
-    }
-    
-    return NextResponse.json(trade);
-  } catch (error) {
-    console.error("Error fetching trade:", error);
-    return NextResponse.json({ error: "Failed to fetch trade" }, { status: 500 });
-  }
-}
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    const tradeId = params.id;
-    const body = await request.json();
-    const { 
-      symbol, 
-      tradeType, 
-      entryPrice, 
-      exitPrice, 
-      entryDate, 
-      exitDate, 
-      quantity, 
-      fees, 
-      profitLoss, 
-      profitLossPercentage,
-      status,
-      strategyId,
-      riskRewardRatio,
-      riskAmount,
-      stopLoss,
-      takeProfit,
-      notes,
-      tags
-    } = body;
+    // Get token from cookies
+    const accessToken = request.cookies.get('accessToken')?.value;
 
-    // Find the trade in mock data
-    const tradeIndex = mockTrades.findIndex(t => t.id === tradeId);
-    
-    if (tradeIndex === -1) {
-      return NextResponse.json({ error: "Trade not found" }, { status: 404 });
-    }
-    
-    // Calculate actual P&L using our trade service
-    let actualPnL = profitLoss;
-    if (exitPrice && status === 'CLOSED') {
-      actualPnL = calculatePnL(
-        symbol || mockTrades[tradeIndex].symbol,
-        tradeType || mockTrades[tradeIndex].trade_type as any,
-        parseFloat(entryPrice || mockTrades[tradeIndex].entry_price as any),
-        parseFloat(exitPrice),
-        parseFloat(quantity || mockTrades[tradeIndex].quantity as any)
+    if (!accessToken) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
       );
     }
-    
-    // Update the trade
-    const updatedTrade = {
-      ...mockTrades[tradeIndex],
-      symbol: symbol || mockTrades[tradeIndex].symbol,
-      trade_type: tradeType || mockTrades[tradeIndex].trade_type,
-      entry_price: entryPrice || mockTrades[tradeIndex].entry_price,
-      exit_price: exitPrice,
-      entry_date: entryDate || mockTrades[tradeIndex].entry_date,
-      exit_date: exitDate,
-      quantity: quantity || mockTrades[tradeIndex].quantity,
-      fees: fees !== undefined ? fees : mockTrades[tradeIndex].fees,
-      profit_loss: actualPnL,
-      profit_loss_percentage: profitLossPercentage,
-      status: status || mockTrades[tradeIndex].status,
-      strategy_id: strategyId,
-      risk_reward_ratio: riskRewardRatio,
-      risk_amount: riskAmount,
-      stop_loss: stopLoss,
-      take_profit: takeProfit,
-      notes: notes,
-      tags: tags
-    };
-    
-    // Update in mock data
-    mockTrades[tradeIndex] = updatedTrade as any;
-    
-    return NextResponse.json({ 
-      success: true, 
-      trade: updatedTrade
+
+    // Verify token
+    const decoded = verifyToken(accessToken);
+
+    if (!decoded || typeof decoded === 'string') {
+      return NextResponse.json(
+        { success: false, message: 'Invalid token' },
+        { status: 401 }
+      );
+    }
+
+    // Fetch the trade
+    const trade = await prisma.trade.findUnique({
+      where: {
+        id: tradeId,
+      },
+      include: {
+        account: true,
+      },
+    });
+
+    if (!trade) {
+      return NextResponse.json(
+        { success: false, message: 'Trade not found' },
+        { status: 404 }
+      );
+    }
+
+    // Verify the trade belongs to the user
+    if (trade.userId !== decoded.userId) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized access to trade' },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      trade,
     });
   } catch (error) {
-    console.error("Error updating trade:", error);
-    return NextResponse.json({ error: "Failed to update trade" }, { status: 500 });
+    console.error('Error fetching trade:', error);
+    return NextResponse.json(
+      { success: false, message: 'Server error fetching trade' },
+      { status: 500 }
+    );
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+// PATCH update a trade
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const tradeId = params.id;
-    
-    // Find the trade in mock data
-    const tradeIndex = mockTrades.findIndex(t => t.id === tradeId);
-    
-    if (tradeIndex === -1) {
-      return NextResponse.json({ error: "Trade not found" }, { status: 404 });
+
+    // Get token from cookies
+    const accessToken = request.cookies.get('accessToken')?.value;
+
+    if (!accessToken) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      );
     }
-    
-    // Remove from mock data
-    mockTrades.splice(tradeIndex, 1);
-    
-    return NextResponse.json({ success: true });
+
+    // Verify token
+    const decoded = verifyToken(accessToken);
+
+    if (!decoded || typeof decoded === 'string') {
+      return NextResponse.json(
+        { success: false, message: 'Invalid token' },
+        { status: 401 }
+      );
+    }
+
+    // Check if trade exists and belongs to user
+    const existingTrade = await prisma.trade.findUnique({
+      where: {
+        id: tradeId,
+      },
+    });
+
+    if (!existingTrade) {
+      return NextResponse.json(
+        { success: false, message: 'Trade not found' },
+        { status: 404 }
+      );
+    }
+
+    if (existingTrade.userId !== decoded.userId) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized access to trade' },
+        { status: 403 }
+      );
+    }
+
+    // Parse request body
+    const data = await request.json();
+    const {
+      accountId,
+      symbol,
+      direction,
+      entryPrice,
+      exitPrice,
+      quantity,
+      entryDate,
+      exitDate,
+      fees,
+      pnl,
+      notes,
+      strategy,
+      emotionalState,
+      tags,
+    } = data;
+
+    // Prepare update data
+    const updateData: any = {};
+
+    // Only include fields that are provided
+    if (accountId !== undefined) {
+      // Verify the account belongs to the user
+      const account = await prisma.account.findFirst({
+        where: {
+          id: accountId,
+          userId: decoded.userId,
+        },
+      });
+
+      if (!account) {
+        return NextResponse.json(
+          { success: false, message: 'Invalid account' },
+          { status: 403 }
+        );
+      }
+
+      updateData.accountId = accountId;
+    }
+
+    if (symbol !== undefined) updateData.symbol = symbol;
+    if (direction !== undefined) updateData.direction = direction;
+    if (entryPrice !== undefined) updateData.entryPrice = entryPrice;
+    if (exitPrice !== undefined) updateData.exitPrice = exitPrice;
+    if (quantity !== undefined) updateData.quantity = quantity;
+    if (entryDate !== undefined) updateData.entryDate = new Date(entryDate);
+    if (exitDate !== undefined) updateData.exitDate = exitDate ? new Date(exitDate) : null;
+    if (fees !== undefined) updateData.fees = fees;
+    if (pnl !== undefined) updateData.pnl = pnl;
+    if (notes !== undefined) updateData.notes = notes;
+    if (strategy !== undefined) updateData.strategy = strategy;
+    if (emotionalState !== undefined) updateData.emotionalState = emotionalState;
+    if (tags !== undefined) updateData.tags = tags;
+
+    // Update the trade
+    const updatedTrade = await prisma.trade.update({
+      where: {
+        id: tradeId,
+      },
+      data: updateData,
+      include: {
+        account: true,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Trade updated successfully',
+      trade: updatedTrade,
+    });
   } catch (error) {
-    console.error("Error deleting trade:", error);
-    return NextResponse.json({ error: "Failed to delete trade" }, { status: 500 });
+    console.error('Error updating trade:', error);
+    return NextResponse.json(
+      { success: false, message: 'Server error updating trade' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE a trade
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const tradeId = params.id;
+
+    // Get token from cookies
+    const accessToken = request.cookies.get('accessToken')?.value;
+
+    if (!accessToken) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // Verify token
+    const decoded = verifyToken(accessToken);
+
+    if (!decoded || typeof decoded === 'string') {
+      return NextResponse.json(
+        { success: false, message: 'Invalid token' },
+        { status: 401 }
+      );
+    }
+
+    // Check if trade exists and belongs to user
+    const existingTrade = await prisma.trade.findUnique({
+      where: {
+        id: tradeId,
+      },
+    });
+
+    if (!existingTrade) {
+      return NextResponse.json(
+        { success: false, message: 'Trade not found' },
+        { status: 404 }
+      );
+    }
+
+    if (existingTrade.userId !== decoded.userId) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized access to trade' },
+        { status: 403 }
+      );
+    }
+
+    // Delete the trade
+    await prisma.trade.delete({
+      where: {
+        id: tradeId,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Trade deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting trade:', error);
+    return NextResponse.json(
+      { success: false, message: 'Server error deleting trade' },
+      { status: 500 }
+    );
   }
 }

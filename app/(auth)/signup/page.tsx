@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,16 @@ export default function SignupPage() {
   const [formSuccess, setFormSuccess] = useState("");
   const router = useRouter();
   const { toast } = useToast();
-  const { signup, isLoading } = useAuth();
+  const { signup, isLoading, isAuthenticated } = useAuth();
+
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    if (isAuthenticated && !isLoading) {
+      router.push("/dashboard");
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   // Password strength checker
   const getPasswordStrength = (pwd: string): { strength: string; color: string } => {
@@ -84,10 +93,10 @@ export default function SignupPage() {
         
         // Slight delay before redirect to show success message
         setTimeout(() => {
-          router.push("/dashboard");
-        }, 1000);
+          window.location.href = "/dashboard";
+        }, 1500);
       } else {
-        setFormError("This email address is already in use. Please try another one or login instead.");
+        setFormError("Registration failed. This email may already be in use or there was a server error.");
       }
     } catch (error) {
       console.error("Signup error:", error);

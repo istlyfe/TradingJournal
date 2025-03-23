@@ -65,10 +65,13 @@ export function TradesHeader({
         </Button>
       </div>
       
-      <CsvImport 
-        isOpen={isDialogOpen}
-        onClose={handleImportClose}
-      />
+      {/* Conditionally render the CsvImport component to prevent duplicate dialogs */}
+      {isDialogOpen && (
+        <CsvImport 
+          isOpen={true}
+          onClose={handleImportClose}
+        />
+      )}
     </div>
   );
 } 

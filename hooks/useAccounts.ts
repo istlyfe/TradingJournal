@@ -115,6 +115,20 @@ export function useAccounts() {
   useEffect(() => {
     if (initialized && selectedAccounts.length >= 0) {
       localStorage.setItem('tradingJournalSelectedAccounts', JSON.stringify(selectedAccounts));
+      
+      // Dispatch both event types for maximum compatibility
+      window.dispatchEvent(new CustomEvent(ACCOUNT_SELECTION_CHANGE, { 
+        detail: { selectedAccounts }
+      }));
+      
+      window.dispatchEvent(new CustomEvent('account-selection-change', { 
+        detail: { selectedAccounts }
+      }));
+      
+      // Also dispatch a storage event for components using storage listeners
+      window.dispatchEvent(new Event('storage'));
+      
+      console.log("useAccounts: dispatched selection change events", selectedAccounts);
     }
   }, [selectedAccounts, initialized]);
 
@@ -124,7 +138,7 @@ export function useAccounts() {
       const newSelection = prev.includes(accountId)
         ? prev.filter(id => id !== accountId)
         : [...prev, accountId];
-        
+      
       return newSelection;
     });
   };
@@ -183,6 +197,7 @@ export function useAccounts() {
   return {
     accounts,
     selectedAccounts,
+    setSelectedAccounts,
     toggleAccount,
     createAccount,
     toggleArchiveAccount

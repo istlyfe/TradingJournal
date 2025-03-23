@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { AccountsPanel } from "@/components/accounts/AccountsPanel";
+import { AccountCreationModal } from "@/components/accounts/AccountCreationModal";
 import { Button } from "@/components/ui/button";
 import { 
   LogOut, 
   User, 
   Settings, 
   ChevronDown,
-  Bell
+  PlusCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
@@ -29,6 +30,7 @@ export function TopNav() {
   const router = useRouter();
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -61,14 +63,23 @@ export function TopNav() {
           )}
         </div>
         <div className="flex items-center gap-4">
-          <AccountsPanel />
+          {/* Accounts Panel */}
+          <div className="account-selector-topnav">
+            <AccountsPanel />
+          </div>
           
-          {/* Notifications button - for future implementation */}
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-            <Bell className="h-5 w-5" />
+          {/* Add Account button */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-2"
+            onClick={() => setShowAccountModal(true)}
+          >
+            <PlusCircle className="h-4 w-4" />
+            <span>Add Account</span>
           </Button>
           
-          {/* User menu */}
+          {/* User menu - Will be moved to sidebar, but keeping for now */}
           <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
             <DropdownMenuTrigger asChild>
               <Button 
@@ -109,6 +120,18 @@ export function TopNav() {
           </DropdownMenu>
         </div>
       </div>
+      
+      {/* Account Creation Modal */}
+      <AccountCreationModal 
+        isOpen={showAccountModal} 
+        onClose={() => setShowAccountModal(false)}
+        onCreateSuccess={(accountId) => {
+          toast({
+            title: "Account Created",
+            description: "Your new account has been created successfully."
+          });
+        }}
+      />
     </nav>
   );
 } 

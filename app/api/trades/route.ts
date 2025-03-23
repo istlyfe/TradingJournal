@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calculatePnL } from "@/lib/tradeService";
+import { prisma } from '@/lib/prisma';
+import { verifyToken } from '@/lib/auth';
 
 // Comment out for static export
 // export const dynamic = 'force-dynamic';
@@ -42,141 +44,159 @@ const mockTrades = [
   }
 ];
 
+// GET all trades for the current user
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-    const status = searchParams.get("status");
-    const symbol = searchParams.get("symbol");
-    const tradeType = searchParams.get("tradeType");
-    const startDate = searchParams.get("startDate");
-    const endDate = searchParams.get("endDate");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
-    const offset = (page - 1) * limit;
+    // Get token from cookies
+    const accessToken = request.cookies.get('accessToken')?.value;
 
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+    if (!accessToken) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      );
     }
 
-    // Filter mock trades
-    let filteredTrades = mockTrades.filter(trade => trade.user_id === userId);
-    
-    if (status) {
-      filteredTrades = filteredTrades.filter(trade => trade.status === status);
+    // Verify token
+    const decoded = verifyToken(accessToken);
+
+    if (!decoded || typeof decoded === 'string') {
+      return NextResponse.json(
+        { success: false, message: 'Invalid token' },
+        { status: 401 }
+      );
     }
+
+    // Get accountId from query parameter (optional filter)
+    const searchParams = request.nextUrl.searchParams;
+    const accountId = searchParams.get('accountId');
     
-    if (symbol) {
-      filteredTrades = filteredTrades.filter(trade => trade.symbol.includes(symbol));
-    }
-    
-    if (tradeType) {
-      filteredTrades = filteredTrades.filter(trade => trade.trade_type === tradeType);
-    }
-    
-    if (startDate) {
-      filteredTrades = filteredTrades.filter(trade => new Date(trade.entry_date) >= new Date(startDate));
-    }
-    
-    if (endDate) {
-      filteredTrades = filteredTrades.filter(trade => new Date(trade.entry_date) <= new Date(endDate));
-    }
-    
-    // Paginate results
-    const paginatedTrades = filteredTrades.slice(offset, offset + limit);
-    
+    // Query trades for the user
+    const trades = await prisma.trade.findMany({
+      where: {
+        userId: decoded.userId,
+        ...(accountId ? { accountId } : {}),
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        account: true,
+      },
+    });
+
     return NextResponse.json({
-      trades: paginatedTrades,
-      pagination: {
-        total: filteredTrades.length,
-        page,
-        limit,
-        totalPages: Math.ceil(filteredTrades.length / limit)
-      }
+      success: true,
+      trades,
     });
   } catch (error) {
-    console.error("Error fetching trades:", error);
-    return NextResponse.json({ error: "Failed to fetch trades" }, { status: 500 });
+    console.error('Error fetching trades:', error);
+    return NextResponse.json(
+      { success: false, message: 'Server error fetching trades' },
+      { status: 500 }
+    );
   }
 }
 
+// POST create a new trade
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { 
-      userId, 
-      symbol, 
-      tradeType, 
-      entryPrice, 
-      exitPrice, 
-      entryDate, 
-      exitDate, 
-      quantity, 
-      fees, 
-      profitLoss, 
-      profitLossPercentage,
-      status,
-      strategyId,
-      riskRewardRatio,
-      riskAmount,
-      stopLoss,
-      takeProfit,
-      notes,
-      tags
-    } = body;
+    // Get token from cookies
+    const accessToken = request.cookies.get('accessToken')?.value;
 
-    if (!userId || !symbol || !tradeType || !entryPrice || !entryDate || !quantity || !status) {
-      return NextResponse.json({ 
-        error: "Missing required fields", 
-        required: "userId, symbol, tradeType, entryPrice, entryDate, quantity, status" 
-      }, { status: 400 });
-    }
-
-    // Calculate actual P&L using our trade service
-    let actualPnL = profitLoss;
-    if (exitPrice && status === 'CLOSED') {
-      actualPnL = calculatePnL(
-        symbol,
-        tradeType as any,
-        parseFloat(entryPrice),
-        parseFloat(exitPrice),
-        parseFloat(quantity)
+    if (!accessToken) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
       );
     }
-    
-    // Create a new trade
-    const tradeId = `trade_${Date.now()}`;
-    const newTrade = {
-      id: tradeId,
-      user_id: userId,
+
+    // Verify token
+    const decoded = verifyToken(accessToken);
+
+    if (!decoded || typeof decoded === 'string') {
+      return NextResponse.json(
+        { success: false, message: 'Invalid token' },
+        { status: 401 }
+      );
+    }
+
+    // Parse request body
+    const data = await request.json();
+    const {
+      accountId,
       symbol,
-      trade_type: tradeType,
-      entry_price: entryPrice,
-      exit_price: exitPrice,
-      entry_date: entryDate,
-      exit_date: exitDate,
+      direction,
+      entryPrice,
+      exitPrice,
       quantity,
-      fees: fees || 0,
-      profit_loss: actualPnL,
-      profit_loss_percentage: profitLossPercentage,
-      status,
-      strategy_id: strategyId,
-      risk_reward_ratio: riskRewardRatio,
-      risk_amount: riskAmount,
-      stop_loss: stopLoss,
-      take_profit: takeProfit
-    };
-    
-    // Add to mock data
-    mockTrades.push(newTrade as any);
-    
-    return NextResponse.json({ 
-      success: true, 
-      tradeId,
-      trade: newTrade
+      entryDate,
+      exitDate,
+      fees,
+      pnl,
+      notes,
+      strategy,
+      emotionalState,
+      tags,
+    } = data;
+
+    // Validate input
+    if (!accountId || !symbol || !direction || !entryPrice || !quantity || !entryDate) {
+      return NextResponse.json(
+        { success: false, message: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Verify the account belongs to the user
+    const account = await prisma.account.findFirst({
+      where: {
+        id: accountId,
+        userId: decoded.userId,
+      },
     });
+
+    if (!account) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid account' },
+        { status: 403 }
+      );
+    }
+
+    // Create the trade
+    const newTrade = await prisma.trade.create({
+      data: {
+        accountId,
+        userId: decoded.userId,
+        symbol,
+        direction,
+        entryPrice,
+        exitPrice,
+        quantity,
+        entryDate: new Date(entryDate),
+        exitDate: exitDate ? new Date(exitDate) : null,
+        fees: fees || 0,
+        pnl: pnl || null,
+        notes: notes || '',
+        strategy: strategy || '',
+        emotionalState: emotionalState || '',
+        tags: tags || [],
+      },
+      include: {
+        account: true,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Trade created successfully',
+      trade: newTrade,
+    }, { status: 201 });
   } catch (error) {
-    console.error("Error creating trade:", error);
-    return NextResponse.json({ error: "Failed to create trade" }, { status: 500 });
+    console.error('Error creating trade:', error);
+    return NextResponse.json(
+      { success: false, message: 'Server error creating trade' },
+      { status: 500 }
+    );
   }
 }

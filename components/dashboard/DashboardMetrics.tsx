@@ -58,20 +58,40 @@ export function DashboardMetrics() {
   }, []);
   
   useEffect(() => {
-    const handleAccountSelectionChange = () => {
+    const handleAccountSelectionChange = (e: CustomEvent) => {
       // Force a re-render to update filtered trades
+      console.log("Account selection changed in DashboardMetrics, refreshing...");
       setForceUpdate(prev => prev + 1);
     };
 
+    // Listen for both event types to ensure updates
     window.addEventListener(
       ACCOUNT_SELECTION_CHANGE, 
-      handleAccountSelectionChange
+      handleAccountSelectionChange as EventListener
+    );
+    
+    window.addEventListener(
+      'account-selection-change',
+      handleAccountSelectionChange as EventListener
+    );
+    
+    window.addEventListener(
+      'storage',
+      () => setForceUpdate(prev => prev + 1)
     );
     
     return () => {
       window.removeEventListener(
         ACCOUNT_SELECTION_CHANGE, 
-        handleAccountSelectionChange
+        handleAccountSelectionChange as EventListener
+      );
+      window.removeEventListener(
+        'account-selection-change',
+        handleAccountSelectionChange as EventListener
+      );
+      window.removeEventListener(
+        'storage',
+        () => setForceUpdate(prev => prev + 1)
       );
     };
   }, []);
@@ -300,6 +320,32 @@ export function DashboardMetrics() {
           </TabsList>
         </Tabs>
       </div>
+
+      {/* Date range selector */}
+      <div className="flex justify-end mb-4">
+        <div className="flex gap-1 bg-muted/50 p-1 rounded-md">
+          {['1W', '1M', '3M', '6M', '1Y', 'YTD', 'ALL'].map((range) => (
+            <Button
+              key={range}
+              variant={dateRange === range ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setDateRange(range as DateRange)}
+              className="text-xs h-7 px-2"
+            >
+              {range}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* No data alert */}
+      {getFilteredTrades().length === 0 && (
+        <Alert className="mb-4">
+          <AlertDescription>
+            No trades found for the selected filters. Try adjusting your account selection or date range.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Main Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

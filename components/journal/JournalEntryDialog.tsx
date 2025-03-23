@@ -31,7 +31,6 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
   const [content, setContent] = useState("");
   const [marketConditions, setMarketConditions] = useState("");
   const [sentiment, setSentiment] = useState<"bullish" | "bearish" | "neutral">("neutral");
-  const [mood, setMood] = useState<string>("none");
   const [lessons, setLessons] = useState("");
   const [relatedTradeIds, setRelatedTradeIds] = useState<string[]>([]);
   const [tags, setTags] = useState<string>("");
@@ -44,7 +43,6 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
       setContent(entry.content);
       setMarketConditions(entry.marketConditions || "");
       setSentiment(entry.sentiment || "neutral");
-      setMood(entry.mood || "none");
       setLessons(entry.lessons || "");
       setRelatedTradeIds(entry.relatedTradeIds || []);
       setTags((entry.tags || []).join(", "));
@@ -55,7 +53,6 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
       setContent("");
       setMarketConditions("");
       setSentiment("neutral");
-      setMood("none");
       setLessons("");
       setRelatedTradeIds([]);
       setTags("");
@@ -77,7 +74,6 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
       content,
       marketConditions: marketConditions || undefined,
       sentiment: sentiment as "bullish" | "bearish" | "neutral",
-      mood: mood === "none" ? undefined : mood as any,
       lessons: lessons || undefined,
       relatedTradeIds: relatedTradeIds.length > 0 ? relatedTradeIds : undefined,
       tags: formattedTags.length > 0 ? formattedTags : undefined,
@@ -97,10 +93,6 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
       tradeDate.getDate() === date.getDate()
     );
   });
-  
-  const moodOptions = [
-    "confident", "anxious", "calm", "frustrated", "focused", "distracted", "other"
-  ];
   
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -175,45 +167,26 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
             />
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Market Sentiment</Label>
-              <RadioGroup 
-                value={sentiment} 
-                onValueChange={(value) => setSentiment(value as "bullish" | "bearish" | "neutral")}
-                className="flex space-x-4"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="bullish" id="bullish" />
-                  <Label htmlFor="bullish" className="cursor-pointer">Bullish</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="bearish" id="bearish" />
-                  <Label htmlFor="bearish" className="cursor-pointer">Bearish</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="neutral" id="neutral" />
-                  <Label htmlFor="neutral" className="cursor-pointer">Neutral</Label>
-                </div>
-              </RadioGroup>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="mood">Your Mood</Label>
-              <Select value={mood} onValueChange={setMood}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your mood" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Select a mood</SelectItem>
-                  {moodOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option.charAt(0).toUpperCase() + option.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label>Market Sentiment</Label>
+            <RadioGroup 
+              value={sentiment} 
+              onValueChange={(value) => setSentiment(value as "bullish" | "bearish" | "neutral")}
+              className="flex space-x-4"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="bullish" id="bullish" />
+                <Label htmlFor="bullish" className="cursor-pointer">Bullish</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="bearish" id="bearish" />
+                <Label htmlFor="bearish" className="cursor-pointer">Bearish</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="neutral" id="neutral" />
+                <Label htmlFor="neutral" className="cursor-pointer">Neutral</Label>
+              </div>
+            </RadioGroup>
           </div>
           
           <div className="space-y-2">
@@ -256,13 +229,16 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
           )}
           
           <div className="space-y-2">
-            <Label htmlFor="tags">Tags (comma separated)</Label>
+            <Label htmlFor="tags">Tags</Label>
             <Input
               id="tags"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
-              placeholder="market-reversal, gap-fill, breakout, etc."
+              placeholder="Enter tags separated by commas"
             />
+            <p className="text-xs text-muted-foreground">
+              Separate tags with commas (e.g., "morning, gap, breakout")
+            </p>
           </div>
           
           <DialogFooter>

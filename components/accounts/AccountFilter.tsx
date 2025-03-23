@@ -1,5 +1,9 @@
 "use client";
 
+// DEPRECATED - Now handled in AccountsPanel.tsx directly
+// This file is kept only for backward compatibility
+// All functionality has been moved to AccountsPanel.tsx
+
 import { useState, useEffect, useCallback } from "react";
 import { CheckIcon, ChevronsUpDown, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -104,31 +108,57 @@ export function AccountFilter() {
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-[200px] justify-between border border-slate-800 bg-background/90 px-3 py-5 text-base font-medium"
+          className="w-[200px] justify-between border border-slate-800 bg-background/90 px-3 py-2 text-base font-medium"
         >
-          {displayValue}
-          <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 opacity-50" />
+          <div className="flex items-center">
+            {selectedAccounts.length > 0 && selectedAccounts.length < accounts.length && (
+              <div className="flex -space-x-1 mr-2">
+                {selectedAccounts.slice(0, 3).map(accountId => {
+                  const account = accounts.find(a => a.id === accountId);
+                  return account?.color ? (
+                    <div 
+                      key={accountId}
+                      className="w-3 h-3 rounded-full border border-background"
+                      style={{ backgroundColor: account.color || '#888888' }}
+                    />
+                  ) : null;
+                })}
+              </div>
+            )}
+            <span className="truncate">{displayValue}</span>
+          </div>
+          <ChevronsUpDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0">
+      <PopoverContent 
+        className="w-[200px] p-0 bg-background border"
+        align="start"
+        side="bottom"
+        sideOffset={4}
+        alignOffset={0}
+        collisionBoundary={null}
+        sticky="always"
+      >
         <Command>
           <CommandInput placeholder="Search accounts..." />
-          <CommandList>
+          <CommandList className="max-h-[300px]">
             <CommandEmpty>No accounts found.</CommandEmpty>
             <CommandGroup>
               <CommandItem
                 onSelect={toggleAllAccounts}
                 className="text-sm"
               >
-                <div className={cn(
-                  "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                  allSelected
-                    ? "bg-primary text-primary-foreground"
-                    : "opacity-50 [&_svg]:invisible"
-                )}>
-                  <CheckIcon className="h-4 w-4" />
+                <div className="flex items-center gap-2 w-full">
+                  <div className={cn(
+                    "flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                    allSelected
+                      ? "bg-primary text-primary-foreground"
+                      : "opacity-50 [&_svg]:invisible"
+                  )}>
+                    <CheckIcon className="h-4 w-4" />
+                  </div>
+                  <span>All accounts</span>
                 </div>
-                <span>All accounts</span>
               </CommandItem>
 
               <CommandSeparator />
@@ -139,24 +169,26 @@ export function AccountFilter() {
                   <CommandItem
                     key={account.id}
                     onSelect={() => handleToggleAccount(account.id)}
-                    className="text-sm flex items-center py-3"
+                    className="text-sm flex items-center py-2"
                   >
-                    <div className={cn(
-                      "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                      isSelected
-                        ? "bg-primary text-primary-foreground"
-                        : "opacity-50 [&_svg]:invisible"
-                    )}>
-                      <CheckIcon className="h-4 w-4" />
-                    </div>
-                    <div className="flex items-center w-full">
-                      {account.color && (
-                        <div 
-                          className="w-3 h-3 rounded-full mr-2 flex-shrink-0" 
-                          style={{ backgroundColor: account.color || '#888888' }}
-                        />
-                      )}
-                      <span className="truncate">{account.name}</span>
+                    <div className="flex items-center gap-2 w-full">
+                      <div className={cn(
+                        "flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                        isSelected
+                          ? "bg-primary text-primary-foreground"
+                          : "opacity-50 [&_svg]:invisible"
+                      )}>
+                        <CheckIcon className="h-4 w-4" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {account.color && (
+                          <div 
+                            className="w-3 h-3 rounded-full flex-shrink-0" 
+                            style={{ backgroundColor: account.color || '#888888' }}
+                          />
+                        )}
+                        <span className="truncate">{account.name}</span>
+                      </div>
                     </div>
                   </CommandItem>
                 );

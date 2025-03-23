@@ -9,7 +9,7 @@ import { getFuturesContractMultiplier, isFuturesContract } from "./utils";
 export interface Trade {
   id?: string;
   symbol: string;
-  direction: "LONG" | "SHORT";
+  direction: 'long' | 'short';
   entryDate: string;
   entryPrice: number;
   exitDate?: string;
@@ -27,7 +27,7 @@ export interface Trade {
  */
 export function calculatePnL(
   symbol: string,
-  direction: "LONG" | "SHORT",
+  direction: 'long' | 'short',
   entryPrice: number,
   exitPrice: number,
   quantity: number
@@ -43,7 +43,7 @@ export function calculatePnL(
   
   // Calculate raw PnL
   let pnl = 0;
-  if (direction === "LONG") {
+  if (direction === "long") {
     pnl = (exitPrice - entryPrice) * quantity * effectiveMultiplier;
   } else {
     pnl = (entryPrice - exitPrice) * quantity * effectiveMultiplier;
@@ -55,7 +55,7 @@ export function calculatePnL(
   // Debug logging
   console.log(`PnL calculation for ${symbol} (${direction}):`);
   console.log(`Entry: ${entryPrice}, Exit: ${exitPrice}, Quantity: ${quantity}, Multiplier: ${effectiveMultiplier}`);
-  console.log(`Formula: ${direction === "LONG" ? 
+  console.log(`Formula: ${direction === "long" ? 
     `(${exitPrice} - ${entryPrice}) * ${quantity} * ${effectiveMultiplier}` : 
     `(${entryPrice} - ${exitPrice}) * ${quantity} * ${effectiveMultiplier}`}`);
   console.log(`Result: ${pnl}`);

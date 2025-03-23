@@ -11,6 +11,10 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Ensure experimental.serverComponentsExternalPackages is defined for proper handling of bcryptjs and jsonwebtoken
+  experimental: {
+    serverComponentsExternalPackages: ['bcryptjs', 'jsonwebtoken']
+  },
   images: {
     unoptimized: true,
     domains: ['images.unsplash.com'],

@@ -13,6 +13,9 @@ import { JournalEntry } from "@/types/journal";
 import { useTrades } from "@/hooks/useTrades";
 import { Trade } from "@/types/trade";
 import { DatePicker } from "./DatePicker";
+import { TrendingUp, TrendingDown, Minus, LineChart } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { TradeChart } from "../trades/TradeChart";
 
 interface JournalEntryDialogProps {
   isOpen: boolean;
@@ -35,6 +38,8 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
   const [tags, setTags] = useState<string>("");
   const [mood, setMood] = useState<string>("none");
   const [selectedTemplate, setSelectedTemplate] = useState<string>("none");
+  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
+  const [isChartOpen, setIsChartOpen] = useState(false);
   
   // Reset form when entry changes
   useEffect(() => {
@@ -103,15 +108,15 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
   
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto p-4 md:p-6">
         <DialogHeader>
-          <DialogTitle>{entry ? "Edit Journal Entry" : "New Journal Entry"}</DialogTitle>
+          <DialogTitle className="text-xl">{entry ? "Edit Journal Entry" : "New Journal Entry"}</DialogTitle>
           <DialogDescription>
             Record your thoughts, market conditions, and lessons learned.
           </DialogDescription>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="title">Title</Label>
@@ -121,6 +126,7 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Entry title"
                 required
+                className="h-10"
               />
             </div>
             
@@ -130,25 +136,25 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
             </div>
           </div>
           
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="content">Journal Entry</Label>
             <Textarea
               id="content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Write your thoughts, observations, and reflections..."
-              className="min-h-32 font-mono text-sm"
+              className="min-h-52 font-mono text-sm"
               required
             />
           </div>
           
           {/* Mood and Sentiment Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Mood Selection */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label>Trading Mood</Label>
               <Select value={mood} onValueChange={setMood}>
-                <SelectTrigger>
+                <SelectTrigger className="h-10">
                   <SelectValue placeholder="How did you feel while trading?" />
                 </SelectTrigger>
                 <SelectContent>
@@ -166,34 +172,83 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
             </div>
             
             {/* Market Sentiment */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label>Market Sentiment</Label>
-              <RadioGroup 
-                value={sentiment} 
-                onValueChange={(value) => setSentiment(value as "bullish" | "bearish" | "neutral")}
-                className="flex space-x-4"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="bullish" id="bullish" />
-                  <Label htmlFor="bullish" className="cursor-pointer">Bullish</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="bearish" id="bearish" />
-                  <Label htmlFor="bearish" className="cursor-pointer">Bearish</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="neutral" id="neutral" />
-                  <Label htmlFor="neutral" className="cursor-pointer">Neutral</Label>
-                </div>
-              </RadioGroup>
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSentiment("bullish")}
+                  className={cn(
+                    "flex flex-col items-center justify-center h-20 rounded-md border-2 transition-all",
+                    sentiment === "bullish"
+                      ? "bg-green-50 border-green-600 dark:bg-green-950/30 dark:border-green-500"
+                      : "border-muted hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-950/20"
+                  )}
+                >
+                  <TrendingUp className={cn(
+                    "h-8 w-8 mb-1",
+                    sentiment === "bullish" ? "text-green-600" : "text-muted-foreground"
+                  )} />
+                  <span className={cn(
+                    "font-medium",
+                    sentiment === "bullish" ? "text-green-600" : "text-muted-foreground"
+                  )}>
+                    Bullish
+                  </span>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setSentiment("neutral")}
+                  className={cn(
+                    "flex flex-col items-center justify-center h-20 rounded-md border-2 transition-all", 
+                    sentiment === "neutral"
+                      ? "bg-amber-50 border-amber-600 dark:bg-amber-950/30 dark:border-amber-500"
+                      : "border-muted hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                  )}
+                >
+                  <Minus className={cn(
+                    "h-8 w-8 mb-1",
+                    sentiment === "neutral" ? "text-amber-600" : "text-muted-foreground"
+                  )} />
+                  <span className={cn(
+                    "font-medium",
+                    sentiment === "neutral" ? "text-amber-600" : "text-muted-foreground"
+                  )}>
+                    Neutral
+                  </span>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setSentiment("bearish")}
+                  className={cn(
+                    "flex flex-col items-center justify-center h-20 rounded-md border-2 transition-all",
+                    sentiment === "bearish"
+                      ? "bg-red-50 border-red-600 dark:bg-red-950/30 dark:border-red-500"
+                      : "border-muted hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+                  )}
+                >
+                  <TrendingDown className={cn(
+                    "h-8 w-8 mb-1",
+                    sentiment === "bearish" ? "text-red-600" : "text-muted-foreground"
+                  )} />
+                  <span className={cn(
+                    "font-medium",
+                    sentiment === "bearish" ? "text-red-600" : "text-muted-foreground"
+                  )}>
+                    Bearish
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
           
           {/* Template Selection */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="template">Journal Template</Label>
             <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-              <SelectTrigger>
+              <SelectTrigger className="h-10">
                 <SelectValue placeholder="Select a template (optional)" />
               </SelectTrigger>
               <SelectContent>
@@ -209,30 +264,30 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
             </p>
           </div>
           
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="marketConditions">Market Conditions</Label>
             <Textarea
               id="marketConditions"
               value={marketConditions}
               onChange={(e) => setMarketConditions(e.target.value)}
               placeholder="Describe overall market conditions, trends, or important events..."
-              className="min-h-20"
+              className="min-h-32"
             />
           </div>
           
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="lessons">Lessons Learned</Label>
             <Textarea
               id="lessons"
               value={lessons}
               onChange={(e) => setLessons(e.target.value)}
               placeholder="What did you learn today? What would you do differently next time?"
-              className="min-h-20"
+              className="min-h-32"
             />
           </div>
           
           {tradesOnSelectedDate.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label>Related Trades on {format(date, "MMM d, yyyy")}</Label>
               <div className="max-h-40 overflow-y-auto rounded-md border p-2">
                 {tradesOnSelectedDate.map((trade) => (
@@ -250,22 +305,39 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
                       }}
                       className="h-4 w-4 rounded border-gray-300"
                     />
-                    <Label htmlFor={`trade-${trade.id}`} className="cursor-pointer text-sm">
+                    <Label 
+                      htmlFor={`trade-${trade.id}`} 
+                      className="cursor-pointer text-sm flex-1"
+                    >
                       {trade.symbol} ({trade.direction}) - {trade.quantity} shares at ${trade.entryPrice.toFixed(2)}
                     </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs flex items-center gap-1 border-dashed hover:bg-accent"
+                      onClick={() => {
+                        setSelectedTrade(trade);
+                        setIsChartOpen(true);
+                      }}
+                    >
+                      <LineChart className="h-3.5 w-3.5" />
+                      <span>Chart</span>
+                    </Button>
                   </div>
                 ))}
               </div>
             </div>
           )}
           
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="tags">Tags</Label>
             <Input
               id="tags"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               placeholder="Enter tags separated by commas"
+              className="h-10"
             />
             <p className="text-xs text-muted-foreground">
               Separate tags with commas (e.g., "morning, gap, breakout")
@@ -280,6 +352,13 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
           </DialogFooter>
         </form>
       </DialogContent>
+      
+      {/* TradeChart Dialog */}
+      <TradeChart
+        trade={selectedTrade}
+        isOpen={isChartOpen}
+        setIsOpen={setIsChartOpen}
+      />
     </Dialog>
   );
 } 

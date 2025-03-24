@@ -23,7 +23,7 @@ export function TradeList({ trades = [], onTradesDeleted }: TradeListProps) {
   // Filter trades by selected accounts, or show all if none selected
   const filteredTrades = selectedAccounts.length > 0
     ? trades.filter(trade => trade.accountId !== undefined && selectedAccounts.includes(trade.accountId))
-    : trades; // Show all trades if no accounts are selected
+    : []; // Show no trades if no accounts are selected
 
   // Track row selection
   const onRowSelectionChange = (rowIds: string[]) => {
@@ -98,7 +98,7 @@ export function TradeList({ trades = [], onTradesDeleted }: TradeListProps) {
         <Alert>
           <Filter className="h-4 w-4" />
           <AlertDescription>
-            No accounts selected. Showing all trades. Use the account filter to select specific accounts.
+            No accounts selected. No trades will be shown. Use the account filter to select specific accounts.
           </AlertDescription>
         </Alert>
       )}

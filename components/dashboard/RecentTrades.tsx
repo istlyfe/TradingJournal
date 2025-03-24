@@ -35,7 +35,7 @@ export function RecentTrades() {
   // Filter trades by selected accounts
   const filteredTrades = selectedAccounts.length > 0
     ? trades.filter(trade => trade.accountId && selectedAccounts.includes(trade.accountId))
-    : trades; // Show all trades if no accounts are selected
+    : []; // Show no trades if no accounts are selected
   
   // Get recent trades (most recent 5)
   const recentTrades = [...filteredTrades]
@@ -70,7 +70,7 @@ export function RecentTrades() {
         <Alert>
           <Filter className="h-4 w-4" />
           <AlertDescription>
-            No accounts selected. Showing all trades. Use the account filter to select specific accounts.
+            No accounts selected. No trades will be shown. Use the account filter to select specific accounts.
           </AlertDescription>
         </Alert>
       )}

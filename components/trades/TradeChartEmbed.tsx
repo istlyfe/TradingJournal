@@ -12,68 +12,85 @@ interface TradeChartProps {
   setIsOpen: (isOpen: boolean) => void;
 }
 
-export function TradeChart({ trade, isOpen, setIsOpen }: TradeChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export function TradeChartEmbed({ trade, isOpen, setIsOpen }: TradeChartProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isOpen || !trade || !containerRef.current) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    // Clear any existing content
-    containerRef.current.innerHTML = "";
-
-    try {
-      // Create an iframe for TradingView Advanced Chart
-      const iframe = document.createElement("iframe");
-      
-      // Format the symbol properly for exchange prefixing
-      let formattedSymbol = trade.symbol;
-      // Add NASDAQ: prefix for common stocks if not already prefixed
-      if (!formattedSymbol.includes(":")) {
-        formattedSymbol = `NASDAQ:${formattedSymbol}`;
-      }
-      
-      // Set up the iframe
-      iframe.setAttribute("src", `https://www.tradingview.com/chart/?symbol=${formattedSymbol}&interval=15&theme=dark`);
-      iframe.style.width = "100%";
-      iframe.style.height = "100%";
-      iframe.style.border = "none";
-      iframe.onload = () => {
-        setIsLoading(false);
-      };
-      iframe.onerror = () => {
-        setError("Failed to load chart. Please try again.");
-        setIsLoading(false);
-      };
-      
-      // Add timeout for loading
-      const timeoutId = setTimeout(() => {
-        if (isLoading) {
-          setError("Chart loading timed out. Please try again.");
-          setIsLoading(false);
-        }
-      }, 15000); // 15 second timeout
-      
-      // Append the iframe to the container
-      containerRef.current.appendChild(iframe);
-      
-      // Cleanup function
-      return () => {
-        clearTimeout(timeoutId);
-        setIsLoading(false);
-        setError(null);
-      };
-      
-    } catch (err) {
-      console.error("Error creating TradingView chart:", err);
-      setError("Failed to initialize chart. Please try again.");
-      setIsLoading(false);
+  // Create HTML string for direct embed
+  const getChartHTML = (symbol: string) => {
+    // Format the symbol properly for exchange prefixing
+    let formattedSymbol = symbol;
+    if (!formattedSymbol.includes(":")) {
+      formattedSymbol = `NASDAQ:${formattedSymbol}`;
     }
-  }, [isOpen, trade]);
+    
+    return `
+      <!-- TradingView Widget BEGIN -->
+      <div class="tradingview-widget-container" style="width: 100%; height: 100%;">
+        <div id="tradingview_chart" style="width: 100%; height: 500px;"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+        <script type="text/javascript">
+        setTimeout(function() {
+          try {
+            new TradingView.widget({
+              "width": "100%",
+              "height": 500,
+              "symbol": "${formattedSymbol}",
+              "interval": "15",
+              "timezone": "Etc/UTC",
+              "theme": "dark",
+              "style": "1",
+              "locale": "en",
+              "toolbar_bg": "#f1f3f6",
+              "enable_publishing": false,
+              "allow_symbol_change": true,
+              "container_id": "tradingview_chart"
+            });
+            // Let the parent component know we're done loading
+            document.dispatchEvent(new CustomEvent('tradingViewLoaded'));
+          } catch(e) {
+            console.error('TradingView widget error:', e);
+            document.dispatchEvent(new CustomEvent('tradingViewError'));
+          }
+        }, 0);
+        </script>
+      </div>
+      <!-- TradingView Widget END -->
+    `;
+  };
+  
+  useEffect(() => {
+    // Set up event listeners for the embedded chart
+    const handleLoaded = () => {
+      setIsLoading(false);
+    };
+    
+    const handleError = () => {
+      setIsLoading(false);
+    };
+    
+    document.addEventListener('tradingViewLoaded', handleLoaded);
+    document.addEventListener('tradingViewError', handleError);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('tradingViewLoaded', handleLoaded);
+      document.removeEventListener('tradingViewError', handleError);
+    };
+  }, []);
+
+  // Reset loading state when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      setIsLoading(true);
+      
+      // Add a backup timeout to hide the loading state if events don't fire
+      const timeout = setTimeout(() => {
+        setIsLoading(false);
+      }, 5000);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [isOpen]);
 
   if (!trade) return null;
 
@@ -135,16 +152,10 @@ export function TradeChart({ trade, isOpen, setIsOpen }: TradeChartProps) {
               </div>
             )}
             
-            {error && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 z-10">
-                <p className="text-red-500">{error}</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Make sure you're connected to the internet and try again.
-                </p>
-              </div>
-            )}
-            
-            <div ref={containerRef} className="w-full h-full"></div>
+            <div 
+              className="w-full h-full" 
+              dangerouslySetInnerHTML={{ __html: getChartHTML(trade.symbol) }} 
+            />
           </div>
           
           {/* Notes */}

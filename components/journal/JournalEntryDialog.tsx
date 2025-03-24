@@ -15,7 +15,7 @@ import { Trade } from "@/types/trade";
 import { DatePicker } from "./DatePicker";
 import { TrendingUp, TrendingDown, Minus, LineChart } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TradeChart } from "../trades/TradeChart";
+import { TradeChartWidget } from "../trades/TradeChartWidget";
 
 interface JournalEntryDialogProps {
   isOpen: boolean;
@@ -354,7 +354,7 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
       </DialogContent>
       
       {/* TradeChart Dialog */}
-      <TradeChart
+      <TradeChartWidget
         trade={selectedTrade}
         isOpen={isChartOpen}
         setIsOpen={setIsChartOpen}

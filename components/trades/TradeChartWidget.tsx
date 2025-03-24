@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Trade } from "@/types/trade";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
+import TradingViewWidget from 'react-tradingview-widget';
 
 interface TradeChartProps {
   trade: Trade | null;
@@ -12,70 +13,16 @@ interface TradeChartProps {
   setIsOpen: (isOpen: boolean) => void;
 }
 
-export function TradeChart({ trade, isOpen, setIsOpen }: TradeChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export function TradeChartWidget({ trade, isOpen, setIsOpen }: TradeChartProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isOpen || !trade || !containerRef.current) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    // Clear any existing content
-    containerRef.current.innerHTML = "";
-
-    try {
-      // Create an iframe for TradingView Advanced Chart
-      const iframe = document.createElement("iframe");
-      
-      // Format the symbol properly for exchange prefixing
-      let formattedSymbol = trade.symbol;
-      // Add NASDAQ: prefix for common stocks if not already prefixed
-      if (!formattedSymbol.includes(":")) {
-        formattedSymbol = `NASDAQ:${formattedSymbol}`;
-      }
-      
-      // Set up the iframe
-      iframe.setAttribute("src", `https://www.tradingview.com/chart/?symbol=${formattedSymbol}&interval=15&theme=dark`);
-      iframe.style.width = "100%";
-      iframe.style.height = "100%";
-      iframe.style.border = "none";
-      iframe.onload = () => {
-        setIsLoading(false);
-      };
-      iframe.onerror = () => {
-        setError("Failed to load chart. Please try again.");
-        setIsLoading(false);
-      };
-      
-      // Add timeout for loading
-      const timeoutId = setTimeout(() => {
-        if (isLoading) {
-          setError("Chart loading timed out. Please try again.");
-          setIsLoading(false);
-        }
-      }, 15000); // 15 second timeout
-      
-      // Append the iframe to the container
-      containerRef.current.appendChild(iframe);
-      
-      // Cleanup function
-      return () => {
-        clearTimeout(timeoutId);
-        setIsLoading(false);
-        setError(null);
-      };
-      
-    } catch (err) {
-      console.error("Error creating TradingView chart:", err);
-      setError("Failed to initialize chart. Please try again.");
-      setIsLoading(false);
-    }
-  }, [isOpen, trade]);
 
   if (!trade) return null;
+
+  // Format the symbol properly for exchange prefixing
+  let formattedSymbol = trade.symbol;
+  if (!formattedSymbol.includes(":")) {
+    formattedSymbol = `NASDAQ:${formattedSymbol}`;
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -135,16 +82,22 @@ export function TradeChart({ trade, isOpen, setIsOpen }: TradeChartProps) {
               </div>
             )}
             
-            {error && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 z-10">
-                <p className="text-red-500">{error}</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Make sure you're connected to the internet and try again.
-                </p>
-              </div>
-            )}
-            
-            <div ref={containerRef} className="w-full h-full"></div>
+            <TradingViewWidget
+              symbol={formattedSymbol}
+              theme="Dark"
+              autosize
+              interval="15"
+              timezone="Etc/UTC"
+              style="1"
+              locale="en"
+              toolbar_bg="#f1f3f6"
+              enable_publishing={false}
+              hide_side_toolbar={false}
+              allow_symbol_change={true}
+              save_image={true}
+              container_id="tradingview_chart"
+              onLoadingComplete={() => setIsLoading(false)}
+            />
           </div>
           
           {/* Notes */}

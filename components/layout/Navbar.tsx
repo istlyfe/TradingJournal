@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Bell, Search, User } from "lucide-react";
+import { Bell, Search } from "lucide-react";
 
 export function Navbar() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -24,9 +24,6 @@ export function Navbar() {
           <button className="relative hover:bg-gray-100 dark:hover:bg-gray-800 p-2 rounded-full">
             <Bell className="h-5 w-5 text-muted-foreground" />
             <span className="absolute top-1 right-1 h-2 w-2 bg-destructive rounded-full" />
-          </button>
-          <button className="flex items-center justify-center h-9 w-9 rounded-full bg-muted hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-            <User className="h-5 w-5" />
           </button>
         </div>
       </div>

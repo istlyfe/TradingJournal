@@ -20,11 +20,11 @@ export default function DashboardLayout({
 }) {
   return (
     <ProtectedRoute>
-      <div className="min-h-screen flex flex-col">
+      <div className="flex min-h-screen flex-col">
         <TopNav />
-        <div className="flex-1 flex">
+        <div className="flex flex-1 overflow-hidden">
           <Sidebar />
-          <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto bg-background p-4 md:p-6 transition-all duration-300 md:ml-64">
             {children}
           </main>
         </div>

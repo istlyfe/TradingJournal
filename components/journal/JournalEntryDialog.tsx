@@ -22,9 +22,11 @@ interface JournalEntryDialogProps {
   setIsOpen: (isOpen: boolean) => void;
   entry: JournalEntry | null;
   onSave: (entry: JournalEntry) => void;
+  template?: any;
+  moodOptions?: Array<{value: string, label: string, emoji: string}>;
 }
 
-export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: JournalEntryDialogProps) {
+export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template, moodOptions = [] }: JournalEntryDialogProps) {
   const { trades } = useTrades();
   const [title, setTitle] = useState("");
   const [date, setDate] = useState<Date>(new Date());
@@ -34,6 +36,8 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
   const [lessons, setLessons] = useState("");
   const [relatedTradeIds, setRelatedTradeIds] = useState<string[]>([]);
   const [tags, setTags] = useState<string>("");
+  const [mood, setMood] = useState<string>("none");
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("none");
   
   // Reset form when entry changes
   useEffect(() => {
@@ -46,18 +50,22 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
       setLessons(entry.lessons || "");
       setRelatedTradeIds(entry.relatedTradeIds || []);
       setTags((entry.tags || []).join(", "));
+      setMood(entry.mood || "none");
+      setSelectedTemplate(entry.template || "none");
     } else {
       // Default values for new entry
       setTitle("");
       setDate(new Date());
-      setContent("");
+      setContent(template ? template.content : "");
       setMarketConditions("");
       setSentiment("neutral");
       setLessons("");
       setRelatedTradeIds([]);
       setTags("");
+      setMood("none");
+      setSelectedTemplate(template ? template.id : "none");
     }
-  }, [entry, isOpen]);
+  }, [entry, isOpen, template]);
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +85,8 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
       lessons: lessons || undefined,
       relatedTradeIds: relatedTradeIds.length > 0 ? relatedTradeIds : undefined,
       tags: formattedTags.length > 0 ? formattedTags : undefined,
+      mood: mood !== "none" ? mood : undefined,
+      template: selectedTemplate !== "none" ? selectedTemplate : undefined,
       createdAt: entry?.createdAt || "",
       updatedAt: entry?.updatedAt || "",
     };
@@ -132,7 +142,7 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
                     {date ? format(date, "PPP") : "Select a date"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
+                <PopoverContent className="w-auto p-0 z-[100000]">
                   <Calendar
                     mode="single"
                     selected={date}
@@ -151,9 +161,76 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Write your thoughts, observations, and reflections..."
-              className="min-h-32"
+              className="min-h-32 font-mono text-sm"
               required
             />
+          </div>
+          
+          {/* Mood and Sentiment Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Mood Selection */}
+            <div className="space-y-2">
+              <Label>Trading Mood</Label>
+              <Select value={mood} onValueChange={setMood}>
+                <SelectTrigger>
+                  <SelectValue placeholder="How did you feel while trading?" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not specified</SelectItem>
+                  {moodOptions.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <span className="flex items-center gap-2">
+                        <span>{option.emoji}</span>
+                        <span>{option.label}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Market Sentiment */}
+            <div className="space-y-2">
+              <Label>Market Sentiment</Label>
+              <RadioGroup 
+                value={sentiment} 
+                onValueChange={(value) => setSentiment(value as "bullish" | "bearish" | "neutral")}
+                className="flex space-x-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="bullish" id="bullish" />
+                  <Label htmlFor="bullish" className="cursor-pointer">Bullish</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="bearish" id="bearish" />
+                  <Label htmlFor="bearish" className="cursor-pointer">Bearish</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="neutral" id="neutral" />
+                  <Label htmlFor="neutral" className="cursor-pointer">Neutral</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+          
+          {/* Template Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="template">Journal Template</Label>
+            <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a template (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No template</SelectItem>
+                <SelectItem value="pre-market">Pre-Market Plan</SelectItem>
+                <SelectItem value="post-trade">Trade Analysis</SelectItem>
+                <SelectItem value="reflection">Daily Reflection</SelectItem>
+                <SelectItem value="weekly">Weekly Review</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Templates help structure your journal entries
+            </p>
           </div>
           
           <div className="space-y-2">
@@ -165,28 +242,6 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave }: Journal
               placeholder="Describe overall market conditions, trends, or important events..."
               className="min-h-20"
             />
-          </div>
-          
-          <div className="space-y-2">
-            <Label>Market Sentiment</Label>
-            <RadioGroup 
-              value={sentiment} 
-              onValueChange={(value) => setSentiment(value as "bullish" | "bearish" | "neutral")}
-              className="flex space-x-4"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="bullish" id="bullish" />
-                <Label htmlFor="bullish" className="cursor-pointer">Bullish</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="bearish" id="bearish" />
-                <Label htmlFor="bearish" className="cursor-pointer">Bearish</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="neutral" id="neutral" />
-                <Label htmlFor="neutral" className="cursor-pointer">Neutral</Label>
-              </div>
-            </RadioGroup>
           </div>
           
           <div className="space-y-2">

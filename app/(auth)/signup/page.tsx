@@ -19,18 +19,19 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [formError, setFormError] = useState("");
   const [formSuccess, setFormSuccess] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const { signup, isLoading, isAuthenticated } = useAuth();
+  const { signup, isAuthenticated } = useAuth();
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    if (isAuthenticated && !isLoading) {
+    if (isAuthenticated && !isSubmitting) {
       router.push("/dashboard");
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isSubmitting, router]);
 
   // Password strength checker
   const getPasswordStrength = (pwd: string): { strength: string; color: string } => {
@@ -82,9 +83,21 @@ export default function SignupPage() {
     }
     
     try {
-      const success = await signup(name, email, password);
+      // Show that we're submitting the form
+      setIsSubmitting(true);
       
-      if (success) {
+      // Call the signup API directly
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, email, password }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
         setFormSuccess("Your account has been created successfully!");
         toast({
           title: "Account created",
@@ -96,11 +109,15 @@ export default function SignupPage() {
           window.location.href = "/dashboard";
         }, 1500);
       } else {
-        setFormError("Registration failed. This email may already be in use or there was a server error.");
+        // Display the specific error message from the server
+        setFormError(data.message || "Registration failed. Please try again.");
+        console.error("Registration error details:", data);
       }
     } catch (error) {
       console.error("Signup error:", error);
-      setFormError("There was an error creating your account. Please try again later.");
+      setFormError("There was an error connecting to the server. Please check your internet connection and try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -147,7 +164,7 @@ export default function SignupPage() {
                 placeholder="John Doe"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                disabled={isLoading}
+                disabled={isSubmitting}
                 className="focus:border-primary"
                 autoComplete="name"
                 required
@@ -162,7 +179,7 @@ export default function SignupPage() {
                 placeholder="your.email@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
+                disabled={isSubmitting}
                 className="focus:border-primary"
                 autoComplete="email"
                 required
@@ -184,7 +201,7 @@ export default function SignupPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
+                disabled={isSubmitting}
                 className="focus:border-primary"
                 autoComplete="new-password"
                 required
@@ -202,7 +219,7 @@ export default function SignupPage() {
                 placeholder="••••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={isLoading}
+                disabled={isSubmitting}
                 className={`focus:border-primary ${confirmPassword && password !== confirmPassword ? 'border-red-300' : ''}`}
                 autoComplete="new-password"
                 required
@@ -214,9 +231,9 @@ export default function SignupPage() {
             <Button 
               type="submit" 
               className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-700" 
-              disabled={isLoading}
+              disabled={isSubmitting}
             >
-              {isLoading ? (
+              {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Creating Account...

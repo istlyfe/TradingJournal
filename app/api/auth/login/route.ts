@@ -3,16 +3,21 @@ import { sign } from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { comparePassword } from '@/lib/auth';
 
 // Specify Node.js runtime
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
+  console.log('Login request received');
+  
   try {
     const { email, password } = await request.json();
+    console.log('Attempting login for email:', email);
 
     // Validate inputs
     if (!email || !password) {
+      console.log('Missing login credentials');
       return NextResponse.json(
         { success: false, message: 'Email and password are required' },
         { status: 400 }
@@ -20,6 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find user by email
+    console.log('Finding user by email');
     const user = await prisma.user.findUnique({
       where: { email },
       include: {
@@ -36,14 +42,18 @@ export async function POST(request: NextRequest) {
 
     // Check if user exists
     if (!user) {
+      console.log('User not found:', email);
       return NextResponse.json(
         { success: false, message: 'Invalid email or password' },
         { status: 401 }
       );
     }
 
+    console.log('User found:', { id: user.id, name: user.name });
+
     // Special case for demo user
     if (email === 'demo@example.com') {
+      console.log('Demo user login - skipping password check');
       // For demo account, we'll allow login without password verification
       // Generate JWT token
       const accessToken = sign(
@@ -69,6 +79,7 @@ export async function POST(request: NextRequest) {
       // Return user data without password
       const { password: _, ...userWithoutPassword } = user;
       
+      console.log('Demo login successful');
       return NextResponse.json({
         success: true,
         message: 'Login successful',
@@ -77,9 +88,14 @@ export async function POST(request: NextRequest) {
     }
 
     // For normal users, verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    console.log('Verifying password');
+    
+    // Use the comparePassword function from auth.ts for consistency
+    const isPasswordValid = await comparePassword(password, user.password);
+    console.log('Password validation result:', isPasswordValid);
 
     if (!isPasswordValid) {
+      console.log('Password validation failed');
       return NextResponse.json(
         { success: false, message: 'Invalid email or password' },
         { status: 401 }
@@ -87,6 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate JWT token
+    console.log('Generating token');
     const accessToken = sign(
       { 
         userId: user.id,
@@ -98,6 +115,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Set cookies
+    console.log('Setting auth cookies');
     cookies().set({
       name: 'accessToken',
       value: accessToken,
@@ -110,6 +128,7 @@ export async function POST(request: NextRequest) {
     // Return user data without password
     const { password: _, ...userWithoutPassword } = user;
     
+    console.log('Login successful for:', user.email);
     return NextResponse.json({
       success: true,
       message: 'Login successful',
@@ -118,7 +137,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(
-      { success: false, message: 'Server error during login' },
+      { success: false, message: 'Server error during login', error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

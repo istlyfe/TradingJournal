@@ -3,6 +3,15 @@ import jwt, { verify } from 'jsonwebtoken';
 import { prisma } from './prisma';
 import { User } from '@prisma/client';
 
+// Get the JWT secret from environment variables with fallback
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') {
+    console.warn('WARNING: JWT_SECRET is not set in production environment');
+  }
+  return secret || 'fallback-secret-do-not-use-in-production';
+}
+
 // Generate a random string for use as a token
 export function generateRandomString(length: number = 32): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -28,13 +37,14 @@ export async function comparePassword(password: string, hash: string): Promise<b
 
 // Generate JWT tokens
 export function generateTokens(user: User) {
-  const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-do-not-use-in-production';
+  const JWT_SECRET = getJwtSecret();
   
   // Create access token (short-lived)
   const accessToken = jwt.sign(
     { 
-      id: user.id,
-      email: user.email
+      userId: user.id,
+      email: user.email,
+      name: user.name
     },
     JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
@@ -69,7 +79,7 @@ interface DecodedToken {
 export function verifyToken(token: string): DecodedToken | string {
   try {
     // Verify the token using the secret key
-    const decoded = verify(token, process.env.JWT_SECRET || 'demo_secret_key');
+    const decoded = verify(token, getJwtSecret());
     return decoded as DecodedToken;
   } catch (error) {
     // If verification fails, return the error message

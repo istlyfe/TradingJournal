@@ -113,11 +113,23 @@ export default function LoginPage() {
       <Card className="w-full">
         <form onSubmit={handleSubmit}>
           <CardHeader>
-            <CardTitle>Login</CardTitle>
+            <CardTitle>Sign In</CardTitle>
             <CardDescription>
-              Enter your email and password to access your trading journal
+              Enter your details to sign into your account
             </CardDescription>
           </CardHeader>
+          
+          {/* Demo account info box */}
+          <div className="mx-6 mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <h3 className="text-sm font-medium text-blue-800">Demo Account</h3>
+            <p className="text-xs text-blue-700 mt-1">
+              Email: demo@example.com<br/>
+              Password: demo123
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Or click the "Try Demo Mode" button below for instant access
+            </p>
+          </div>
           
           <CardContent className="space-y-4">
             {formError && (

@@ -51,6 +51,7 @@ export async function POST(request: Request) {
     let hashedPassword;
     try {
       hashedPassword = await hashPassword(password);
+      console.log('Password hashed successfully:', hashedPassword.substring(0, 20) + '...');
     } catch (hashError) {
       console.error('Error hashing password:', hashError);
       return NextResponse.json(

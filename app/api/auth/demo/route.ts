@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sign } from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
+import { hashPassword } from '@/lib/auth';
 
 // Specify Node.js runtime
 export const runtime = 'nodejs';
@@ -30,25 +32,17 @@ export async function POST(request: NextRequest) {
           data: {
             name: 'Demo User',
             email: 'demo@example.com',
-            password: 'hashed_demo_password', // In a real app, you'd hash this
+            password: await hashPassword('demo123'), // Use the same hashPassword function
             accounts: {
               create: [
                 {
                   name: 'Demo Trading Account',
-                  broker: 'Demo Broker',
-                  accountType: 'DEMO',
-                  currency: 'USD',
-                  initialBalance: 10000,
-                  currentBalance: 10850,
+                  color: '#FF5733', // Orange color for trading account
                   isDefault: true,
                 },
                 {
                   name: 'Demo Crypto Account',
-                  broker: 'Coinbase',
-                  accountType: 'CRYPTO',
-                  currency: 'USD',
-                  initialBalance: 5000,
-                  currentBalance: 4750,
+                  color: '#3498DB', // Blue color for crypto account 
                   isDefault: false,
                 }
               ]

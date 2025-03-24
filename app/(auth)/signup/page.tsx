@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { safeNavigate } from "@/lib/browser-utils";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -106,7 +107,7 @@ export default function SignupPage() {
         
         // Slight delay before redirect to show success message
         setTimeout(() => {
-          window.location.href = "/dashboard";
+          safeNavigate("/dashboard");
         }, 1500);
       } else {
         // Display the specific error message from the server

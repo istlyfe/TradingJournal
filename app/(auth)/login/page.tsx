@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { safeNavigate } from "@/lib/browser-utils";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -56,8 +57,8 @@ export default function LoginPage() {
           description: "You have successfully logged in",
         });
         
-        // Force navigation to dashboard or redirect path
-        window.location.href = redirectPath;
+        // Safely navigate to redirectPath
+        safeNavigate(redirectPath);
       } else {
         setFormError("Invalid email or password. Please check your credentials and try again.");
       }
@@ -86,8 +87,8 @@ export default function LoginPage() {
           description: "You're now using a demo account with sample data",
         });
         
-        // Force navigation to dashboard or redirect path
-        window.location.href = redirectPath;
+        // Safely navigate to redirectPath
+        safeNavigate(redirectPath);
       } else {
         setFormError("Failed to login with demo account. Please try again.");
       }

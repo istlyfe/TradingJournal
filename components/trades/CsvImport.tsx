@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/command";
 import { Label } from "@/components/ui/label";
 import { AccountSelector } from "@/components/accounts/AccountSelector";
+import { safeNavigate } from "@/lib/browser-utils";
 
 export interface TradeData {
   id: string;
@@ -1292,8 +1293,7 @@ export function CsvImport({ onImportSuccess, isOpen, onClose }: CsvImportProps) 
       // Use a longer delay to ensure dialog animations complete fully before navigation
       setTimeout(() => {
         // Safely navigate after dialog is closed
-        // A direct href is more reliable here than router.push to ensure a complete refresh
-        window.location.href = `/trades`;
+        safeNavigate(`/trades`);
       }, 500);
       
     } catch (error) {

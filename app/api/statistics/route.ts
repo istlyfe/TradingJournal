@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth';
 
+// Specify Node.js runtime
+export const runtime = 'nodejs';
+
+// Make route dynamic to handle cookies
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Get token from cookies

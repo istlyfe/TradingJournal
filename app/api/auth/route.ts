@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// Specify Node.js runtime
+export const runtime = 'nodejs';
+
+
 // Comment out dynamic export for static build
 // export const dynamic = 'force-dynamic';
 

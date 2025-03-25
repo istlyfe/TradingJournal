@@ -26,9 +26,24 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { formatDateForFileName } from "@/lib/utils";
+import { 
+  formatDateTime,
+  cn 
+} from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
+
+// Helper function for formatting dates in filenames
+const formatDateForFileName = (date: Date | string = new Date()): string => {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}_${hours}-${minutes}`;
+};
 
 export function DataManagement() {
   const [exportOptions, setExportOptions] = useState({

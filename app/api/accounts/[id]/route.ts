@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth';
 
+// Specify Node.js runtime
+export const runtime = 'nodejs';
+
+
 // GET a specific account by ID
 export async function GET(
   request: NextRequest,

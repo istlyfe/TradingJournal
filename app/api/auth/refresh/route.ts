@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateTokens, verifyRefreshToken, storeRefreshToken, invalidateRefreshToken } from '@/lib/auth';
 
+// Specify Node.js runtime
+export const runtime = 'nodejs';
+
+
 export async function POST(request: NextRequest) {
   try {
     // Get refresh token from cookies

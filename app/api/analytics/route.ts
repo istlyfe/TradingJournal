@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Comment out for static export
-// export const dynamic = 'force-dynamic';
+// Specify Node.js runtime
+export const runtime = 'nodejs';
+
+// Make route dynamic to handle URL
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {

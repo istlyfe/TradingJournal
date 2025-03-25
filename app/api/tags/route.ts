@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { D1Database } from "@cloudflare/workers-types";
 
+// Specify Node.js runtime
+export const runtime = 'nodejs';
+
+
 interface Env {
   DB: D1Database;
 }

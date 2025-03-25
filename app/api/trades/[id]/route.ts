@@ -3,6 +3,10 @@ import { calculatePnL } from "@/lib/tradeService";
 import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth';
 
+// Specify Node.js runtime
+export const runtime = 'nodejs';
+
+
 // Comment out for static export
 // export const dynamic = 'force-dynamic';
 

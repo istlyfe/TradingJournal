@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,19 @@ import { useAuth } from "@/hooks/useAuth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { safeNavigate } from "@/lib/browser-utils";
 
-export default function SignupPage() {
+// Loading fallback component
+function SignupPageLoader() {
+  return (
+    <div className="flex flex-col items-center justify-center w-full max-w-md px-4">
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    </div>
+  );
+}
+
+// The actual signup page content
+function SignupPageContent() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -254,5 +266,14 @@ export default function SignupPage() {
         </form>
       </Card>
     </div>
+  );
+}
+
+// Default export with Suspense boundary
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<SignupPageLoader />}>
+      <SignupPageContent />
+    </Suspense>
   );
 } 

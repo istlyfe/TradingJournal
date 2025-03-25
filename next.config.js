@@ -19,6 +19,10 @@ const nextConfig = {
   serverRuntimeConfig: {
     PROJECT_ROOT: __dirname
   },
+  // Set dynamic handling for API routes that need cookies or URL access
+  serverActions: {
+    bodySizeLimit: '2mb',
+  },
   images: {
     unoptimized: true,
     domains: ['images.unsplash.com'],

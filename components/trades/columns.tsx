@@ -12,7 +12,7 @@ export const columns: ColumnDef<Trade>[] = [
   {
     id: "select",
     header: ({ table }) => (
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-center p-2">
         <Checkbox
           checked={
             table.getIsAllPageRowsSelected() ||
@@ -20,17 +20,25 @@ export const columns: ColumnDef<Trade>[] = [
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
-          className="trade-table-checkbox"
+          className="h-5 w-5"
         />
       </div>
     ),
     cell: ({ row }) => (
-      <div className="flex items-center justify-center">
+      <div 
+        className="flex items-center justify-center p-2"
+        onClick={(e) => {
+          e.stopPropagation();
+          row.toggleSelected();
+        }}
+      >
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onCheckedChange={(value) => {
+            row.toggleSelected(!!value);
+          }}
           aria-label="Select row"
-          className="trade-table-checkbox"
+          className="h-5 w-5"
         />
       </div>
     ),

@@ -54,7 +54,11 @@ export function useAccounts() {
       if (storedSelectedAccounts) {
         try {
           const parsedSelectedAccounts = JSON.parse(storedSelectedAccounts);
-          setSelectedAccounts(parsedSelectedAccounts);
+          // Filter out any selected accounts that no longer exist
+          const validSelectedAccounts = parsedSelectedAccounts.filter((id: string) => 
+            loadedAccounts.some(acc => acc.id === id)
+          );
+          setSelectedAccounts(validSelectedAccounts);
         } catch (error) {
           console.error("Error parsing selected accounts from localStorage:", error);
           // Fall back to selecting all accounts

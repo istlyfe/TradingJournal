@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAccounts } from "@/hooks/useAccounts";
 import { Trade } from "@/types/trade";
 import { DataTable } from "@/components/ui/data-table";
 import { columns } from "./columns";
 import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Filter } from "lucide-react";
+import { Filter, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 interface TradeListProps {
   trades?: Trade[];
@@ -17,105 +19,146 @@ interface TradeListProps {
 export function TradeList({ trades = [], onTradesDeleted }: TradeListProps) {
   const { selectedAccounts } = useAccounts();
   const { toast } = useToast();
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedTradeIds, setSelectedTradeIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [localTrades, setLocalTrades] = useState<Trade[]>([]);
   
-  // Filter trades by selected accounts, or show all if none selected
-  const filteredTrades = selectedAccounts.length > 0
-    ? trades.filter(trade => trade.accountId !== undefined && selectedAccounts.includes(trade.accountId))
-    : []; // Show no trades if no accounts are selected
-
-  // Track row selection
-  const onRowSelectionChange = (rowIds: string[]) => {
-    setSelectedTradeIds(rowIds);
-  };
-
-  // Add keyboard shortcut for deleting selected trades
+  // Store all trades to manage both filtered and unfiltered states
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Delete key pressed when there are selected trades
-      if (e.key === 'Delete' && selectedTradeIds.length > 0) {
-        setDeleteDialogOpen(true);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [selectedTradeIds]);
-
-  const handleDeleteTrades = (tradeIds: string[]) => {
-    if (tradeIds.length === 0) return;
-
     try {
-      // Get trades from localStorage
-      const storedTrades = localStorage.getItem('tradingJournalTrades');
-      if (!storedTrades) return;
+      // If trades are passed as props, use them
+      if (trades && trades.length > 0) {
+        setLocalTrades(trades);
+        setLoading(false);
+        return;
+      }
       
-      const tradesObj = JSON.parse(storedTrades);
-      
-      // Delete selected trades
-      const updatedTrades = { ...tradesObj };
-      let deletedCount = 0;
-      
-      tradeIds.forEach(id => {
-        if (updatedTrades[id]) {
-          delete updatedTrades[id];
-          deletedCount++;
-        }
-      });
-      
-      // Save updated trades to localStorage
-      localStorage.setItem('tradingJournalTrades', JSON.stringify(updatedTrades));
-      
-      // Show success toast
+      // Otherwise, load from localStorage
+      const storedTrades = localStorage.getItem('trades');
+      if (storedTrades) {
+        const parsedTrades = JSON.parse(storedTrades);
+        console.log("Loaded trades from localStorage:", parsedTrades.length);
+        setLocalTrades(parsedTrades);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading trades:', error);
       toast({
-        title: "Trades deleted",
-        description: `Successfully deleted ${deletedCount} ${deletedCount === 1 ? 'trade' : 'trades'}.`,
+        variant: "destructive",
+        title: "Error loading trades",
+        description: "Failed to load trades from storage."
+      });
+      setLoading(false);
+    }
+  }, [trades, toast]);
+  
+  // Filter trades by selected accounts
+  const filteredTrades = selectedAccounts.length > 0
+    ? localTrades.filter(trade => trade.accountId && selectedAccounts.includes(trade.accountId))
+    : localTrades;
+  
+  // Handle deleting trades with a direct ID-based approach
+  const handleDeleteTrades = (selectedIndices: number[]) => {
+    try {
+      if (selectedIndices.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "No trades selected",
+          description: "Please select trades to delete."
+        });
+        return;
+      }
+      
+      console.log("DELETE HANDLER CALLED with indices:", selectedIndices);
+      
+      // Get the IDs of selected trades from the filtered list
+      const tradeIdsToDelete = selectedIndices.map(index => {
+        if (index < filteredTrades.length) {
+          return filteredTrades[index]?.id;
+        }
+        return null;
+      }).filter(Boolean) as string[];
+      
+      console.log("Trade IDs to delete:", tradeIdsToDelete);
+      
+      if (tradeIdsToDelete.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "No valid trades selected",
+          description: "Could not identify trades to delete."
+        });
+        return;
+      }
+      
+      // Remove selected trades from the full list
+      const updatedTrades = localTrades.filter(trade => !tradeIdsToDelete.includes(trade.id));
+      
+      console.log("Before deletion:", localTrades.length, "After deletion:", updatedTrades.length);
+      console.log(`Removing ${localTrades.length - updatedTrades.length} trades`);
+      
+      // Update localStorage directly
+      localStorage.setItem('trades', JSON.stringify(updatedTrades));
+      
+      // Update state
+      setLocalTrades(updatedTrades);
+      
+      toast({
+        title: `Deleted ${tradeIdsToDelete.length} trade${tradeIdsToDelete.length !== 1 ? 's' : ''}`,
+        description: "Selected trades have been removed."
       });
       
-      // Reset selected trade IDs
-      setSelectedTradeIds([]);
+      // Show a more visible confirmation
+      alert(`Successfully deleted ${tradeIdsToDelete.length} trade${tradeIdsToDelete.length !== 1 ? 's' : ''}`);
       
-      // Call callback to refresh trades if provided
+      // Call callback if provided
       if (onTradesDeleted) {
         onTradesDeleted();
       }
     } catch (error) {
-      console.error("Error deleting trades:", error);
+      console.error('Error deleting trades:', error);
       toast({
-        title: "Error",
-        description: "Failed to delete trades. Please try again.",
         variant: "destructive",
+        title: "Failed to delete trades",
+        description: "An error occurred while deleting trades."
       });
     }
   };
-
+  
+  if (loading) {
+    return <div className="flex justify-center p-4"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+  
   return (
-    <div className="space-y-4">
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Your Trades</h1>
+      
       {selectedAccounts.length === 0 && (
-        <Alert>
+        <Alert className="mb-4">
           <Filter className="h-4 w-4" />
           <AlertDescription>
-            No accounts selected. No trades will be shown. Use the account filter to select specific accounts.
+            No accounts selected. Select at least one account to see trades.
           </AlertDescription>
         </Alert>
       )}
       
-      <DataTable
-        columns={columns}
-        data={filteredTrades}
-        enableRowSelection
-        onRowSelectionChange={onRowSelectionChange}
-        onDeleteRows={handleDeleteTrades}
-      />
-      
-      {selectedTradeIds.length > 0 && (
-        <div className="text-xs text-right text-muted-foreground">
-          {selectedTradeIds.length} {selectedTradeIds.length === 1 ? 'trade' : 'trades'} selected. 
-          Press <kbd className="px-1 py-0.5 text-xs bg-muted rounded border">Delete</kbd> to remove.
+      {filteredTrades.length === 0 ? (
+        <div className="text-center p-8">
+          <p className="mb-4">You haven't added any trades yet.</p>
+          <Button asChild>
+            <Link href="/add-trade">Add Your First Trade</Link>
+          </Button>
         </div>
+      ) : (
+        <>
+          <div className="mb-4 text-sm text-muted-foreground">
+            <p>Select trades by clicking the checkbox in each row you want to delete, then click "Delete Selected".</p>
+            <p className="mt-1">{filteredTrades.length} trades displayed.</p>
+          </div>
+          <DataTable 
+            columns={columns}
+            data={filteredTrades}
+            onDeleteRows={handleDeleteTrades}
+          />
+        </>
       )}
     </div>
   );

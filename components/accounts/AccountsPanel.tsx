@@ -106,6 +106,27 @@ export function AccountsPanel() {
     window.dispatchEvent(new Event('storage'));
   }, [selectedAccounts, toggleAccount]);
 
+  const handleCreateAccount = () => {
+    if (!newAccountName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter an account name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    createAccount(newAccountName.trim(), newAccountColor || undefined);
+    setNewAccountName('');
+    setNewAccountColor('');
+    setDialogOpen(false);
+    
+    toast({
+      title: "Success",
+      description: "Account created successfully",
+    });
+  };
+
   const myAccounts = accounts.filter((account) => !account.isArchived);
   const archivedAccounts = accounts.filter((account) => account.isArchived);
 
@@ -132,82 +153,129 @@ export function AccountsPanel() {
         </span>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </Button>
-      
+
       {dropdownOpen && (
-        <>
-          <div className="account-dropdown-content">
-            <div className="p-1">
-              <button
-                className={cn(
-                  "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-                  selectedAccounts.length === accounts.length ? "font-medium" : ""
-                )}
-                onClick={toggleAllAccounts}
-              >
-                <div className={cn(
-                  "mr-2 h-5 w-5 border rounded-sm flex items-center justify-center",
-                  selectedAccounts.length === accounts.length ? "bg-primary border-primary" : "border-input"
-                )}>
-                  {selectedAccounts.length === accounts.length && (
-                    <Check className="h-3.5 w-3.5 text-primary-foreground" />
-                  )}
-                </div>
-                <span>All accounts</span>
-              </button>
-            </div>
-            
-            {myAccounts.length > 0 && (
-              <div className="p-1">
-                <div className="text-xs font-medium text-muted-foreground px-2 py-1">
-                  My accounts
-                </div>
-                {myAccounts.map((account) => (
-                  <div
-                    key={account.id}
-                    className="relative flex cursor-default select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground account-item"
-                    onClick={() => handleToggleAccount(account.id)}
-                  >
-                    <div className={cn(
-                      "mr-2 h-5 w-5 border rounded-sm flex items-center justify-center account-checkbox",
-                      selectedAccounts.includes(account.id) ? "bg-primary border-primary" : "border-input"
-                    )}>
-                      {selectedAccounts.includes(account.id) && (
-                        <Check className="h-3.5 w-3.5 text-primary-foreground" />
-                      )}
-                    </div>
-                    <span>{account.name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {archivedAccounts.length > 0 && (
-              <div className="p-1">
-                <div className="text-xs font-medium text-muted-foreground px-2 py-1">
-                  Archived accounts
-                </div>
-                {archivedAccounts.map((account) => (
-                  <div
-                    key={account.id}
-                    className="relative flex cursor-default select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground account-item"
-                    onClick={() => handleToggleAccount(account.id)}
-                  >
-                    <div className={cn(
-                      "mr-2 h-5 w-5 border rounded-sm flex items-center justify-center account-checkbox",
-                      selectedAccounts.includes(account.id) ? "bg-primary border-primary" : "border-input"
-                    )}>
-                      {selectedAccounts.includes(account.id) && (
-                        <Check className="h-3.5 w-3.5 text-primary-foreground" />
-                      )}
-                    </div>
-                    <span>{account.name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+        <div className="absolute z-50 mt-1 w-full bg-background border rounded-md shadow-lg">
+          <div className="p-2">
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => {
+                setDialogOpen(true);
+                setDropdownOpen(false);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create New Account
+            </Button>
           </div>
-        </>
+          
+          {myAccounts.length > 0 && (
+            <div className="p-1">
+              <div className="text-xs font-medium text-muted-foreground px-2 py-1">
+                My accounts
+              </div>
+              {myAccounts.map((account) => (
+                <div
+                  key={account.id}
+                  className="relative flex cursor-default select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground account-item"
+                  onClick={() => handleToggleAccount(account.id)}
+                >
+                  <div className={cn(
+                    "mr-2 h-5 w-5 border rounded-sm flex items-center justify-center account-checkbox",
+                    selectedAccounts.includes(account.id) ? "bg-primary border-primary" : "border-input"
+                  )}>
+                    {selectedAccounts.includes(account.id) && (
+                      <Check className="h-3.5 w-3.5 text-primary-foreground" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: account.color || '#888888' }}
+                    />
+                    <span>{account.name}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {archivedAccounts.length > 0 && (
+            <div className="p-1">
+              <div className="text-xs font-medium text-muted-foreground px-2 py-1">
+                Archived accounts
+              </div>
+              {archivedAccounts.map((account) => (
+                <div
+                  key={account.id}
+                  className="relative flex cursor-default select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground account-item opacity-60"
+                  onClick={() => handleToggleAccount(account.id)}
+                >
+                  <div className={cn(
+                    "mr-2 h-5 w-5 border rounded-sm flex items-center justify-center account-checkbox",
+                    selectedAccounts.includes(account.id) ? "bg-primary border-primary" : "border-input"
+                  )}>
+                    {selectedAccounts.includes(account.id) && (
+                      <Check className="h-3.5 w-3.5 text-primary-foreground" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: account.color || '#888888' }}
+                    />
+                    <span>{account.name}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Account</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Account Name</Label>
+              <Input
+                id="name"
+                value={newAccountName}
+                onChange={(e) => setNewAccountName(e.target.value)}
+                placeholder="Enter account name"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="color">Account Color</Label>
+              <div className="flex gap-2">
+                {accountColors.map((color) => (
+                  <button
+                    key={color}
+                    className={cn(
+                      "w-8 h-8 rounded-full border-2",
+                      newAccountColor === color ? "border-primary" : "border-transparent"
+                    )}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setNewAccountColor(color)}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateAccount}>
+              Create Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

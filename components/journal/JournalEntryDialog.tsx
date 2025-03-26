@@ -7,15 +7,50 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { JournalEntry } from "@/types/journal";
+import { JournalEntry, JournalImage } from "@/types/journal";
 import { useTrades } from "@/hooks/useTrades";
 import { Trade } from "@/types/trade";
 import { DatePicker } from "./DatePicker";
-import { TrendingUp, TrendingDown, Minus, LineChart } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, LineChart, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TradeChartWidget } from "../trades/TradeChartWidget";
+import { ImageUpload } from "./ImageUpload";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  DialogSafeSelect,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue 
+} from "@/components/ui/dialog-safe-select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+type TradingMood = "confident" | "frustrated" | "anxious" | "neutral" | "excited" | "disappointed" | "tilting";
+
+const moodEmojis: Record<TradingMood, string> = {
+  confident: "😎",
+  frustrated: "😤",
+  anxious: "😰",
+  neutral: "😐",
+  excited: "🤩",
+  disappointed: "😔",
+  tilting: "😫"
+};
+
+const moodLabels: Record<TradingMood, string> = {
+  confident: "Confident",
+  frustrated: "Frustrated",
+  anxious: "Anxious",
+  neutral: "Neutral",
+  excited: "Excited",
+  disappointed: "Disappointed",
+  tilting: "Tilting"
+};
 
 interface JournalEntryDialogProps {
   isOpen: boolean;
@@ -40,6 +75,8 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
   const [selectedTemplate, setSelectedTemplate] = useState<string>("none");
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [isChartOpen, setIsChartOpen] = useState(false);
+  const [images, setImages] = useState<JournalImage[]>([]);
+  const [activeTab, setActiveTab] = useState<string>("content");
   
   // Reset form when entry changes
   useEffect(() => {
@@ -54,6 +91,7 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
       setTags((entry.tags || []).join(", "));
       setMood(entry.mood || "none");
       setSelectedTemplate(entry.template || "none");
+      setImages(entry.images || []);
     } else {
       // Default values for new entry
       setTitle("");
@@ -66,6 +104,7 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
       setTags("");
       setMood("none");
       setSelectedTemplate(template ? template.id : "none");
+      setImages([]);
     }
   }, [entry, isOpen, template]);
   
@@ -89,6 +128,7 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
       tags: formattedTags.length > 0 ? formattedTags : undefined,
       mood: mood !== "none" ? mood : undefined,
       template: selectedTemplate !== "none" ? selectedTemplate : undefined,
+      images: images.length > 0 ? images : undefined,
       createdAt: entry?.createdAt || "",
       updatedAt: entry?.updatedAt || "",
     };
@@ -136,120 +176,146 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
             </div>
           </div>
           
-          <div className="space-y-3">
-            <Label htmlFor="content">Journal Entry</Label>
-            <Textarea
-              id="content"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Write your thoughts, observations, and reflections..."
-              className="min-h-52 font-mono text-sm"
-              required
-            />
-          </div>
-          
-          {/* Mood and Sentiment Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Mood Selection */}
-            <div className="space-y-3">
-              <Label>Trading Mood</Label>
-              <Select value={mood} onValueChange={setMood}>
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="How did you feel while trading?" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Not specified</SelectItem>
-                  {moodOptions.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <span className="flex items-center gap-2">
-                        <span>{option.emoji}</span>
-                        <span>{option.label}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid grid-cols-2 mb-4">
+              <TabsTrigger value="content">Journal Content</TabsTrigger>
+              <TabsTrigger value="images">Chart Images</TabsTrigger>
+            </TabsList>
             
-            {/* Market Sentiment */}
-            <div className="space-y-3">
-              <Label>Market Sentiment</Label>
-              <div className="grid grid-cols-3 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSentiment("bullish")}
-                  className={cn(
-                    "flex flex-col items-center justify-center h-20 rounded-md border-2 transition-all",
-                    sentiment === "bullish"
-                      ? "bg-green-50 border-green-600 dark:bg-green-950/30 dark:border-green-500"
-                      : "border-muted hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-950/20"
-                  )}
-                >
-                  <TrendingUp className={cn(
-                    "h-8 w-8 mb-1",
-                    sentiment === "bullish" ? "text-green-600" : "text-muted-foreground"
-                  )} />
-                  <span className={cn(
-                    "font-medium",
-                    sentiment === "bullish" ? "text-green-600" : "text-muted-foreground"
-                  )}>
-                    Bullish
-                  </span>
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => setSentiment("neutral")}
-                  className={cn(
-                    "flex flex-col items-center justify-center h-20 rounded-md border-2 transition-all", 
-                    sentiment === "neutral"
-                      ? "bg-amber-50 border-amber-600 dark:bg-amber-950/30 dark:border-amber-500"
-                      : "border-muted hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20"
-                  )}
-                >
-                  <Minus className={cn(
-                    "h-8 w-8 mb-1",
-                    sentiment === "neutral" ? "text-amber-600" : "text-muted-foreground"
-                  )} />
-                  <span className={cn(
-                    "font-medium",
-                    sentiment === "neutral" ? "text-amber-600" : "text-muted-foreground"
-                  )}>
-                    Neutral
-                  </span>
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => setSentiment("bearish")}
-                  className={cn(
-                    "flex flex-col items-center justify-center h-20 rounded-md border-2 transition-all",
-                    sentiment === "bearish"
-                      ? "bg-red-50 border-red-600 dark:bg-red-950/30 dark:border-red-500"
-                      : "border-muted hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
-                  )}
-                >
-                  <TrendingDown className={cn(
-                    "h-8 w-8 mb-1",
-                    sentiment === "bearish" ? "text-red-600" : "text-muted-foreground"
-                  )} />
-                  <span className={cn(
-                    "font-medium",
-                    sentiment === "bearish" ? "text-red-600" : "text-muted-foreground"
-                  )}>
-                    Bearish
-                  </span>
-                </button>
+            <TabsContent value="content" className="space-y-4">
+              <div className="space-y-3">
+                <Label htmlFor="content">Journal Entry</Label>
+                <Textarea
+                  id="content"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Write your thoughts, observations, and reflections..."
+                  className="min-h-52 font-mono text-sm"
+                  required
+                />
               </div>
-            </div>
-          </div>
+              
+              {/* Mood and Sentiment Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Mood Selection */}
+                <div className="space-y-3">
+                  <Label>Trading Mood</Label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {Object.entries(moodEmojis).map(([key, emoji]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setMood(key)}
+                        className={cn(
+                          "flex flex-col items-center justify-center h-20 rounded-md border-2 transition-all",
+                          mood === key
+                            ? "bg-primary/10 border-primary dark:bg-primary/20"
+                            : "border-muted hover:border-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10"
+                        )}
+                      >
+                        <span className="text-2xl mb-1">{emoji}</span>
+                        <span className={cn(
+                          "font-medium text-sm",
+                          mood === key ? "text-primary" : "text-muted-foreground"
+                        )}>
+                          {moodLabels[key as TradingMood]}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Market Sentiment */}
+                <div className="space-y-3">
+                  <Label>Market Sentiment</Label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSentiment("bullish")}
+                      className={cn(
+                        "flex flex-col items-center justify-center h-20 rounded-md border-2 transition-all",
+                        sentiment === "bullish"
+                          ? "bg-green-50 border-green-600 dark:bg-green-950/30 dark:border-green-500"
+                          : "border-muted hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-950/20"
+                      )}
+                    >
+                      <TrendingUp className={cn(
+                        "h-8 w-8 mb-1",
+                        sentiment === "bullish" ? "text-green-600" : "text-muted-foreground"
+                      )} />
+                      <span className={cn(
+                        "font-medium",
+                        sentiment === "bullish" ? "text-green-600" : "text-muted-foreground"
+                      )}>
+                        Bullish
+                      </span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setSentiment("neutral")}
+                      className={cn(
+                        "flex flex-col items-center justify-center h-20 rounded-md border-2 transition-all", 
+                        sentiment === "neutral"
+                          ? "bg-amber-50 border-amber-600 dark:bg-amber-950/30 dark:border-amber-500"
+                          : "border-muted hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                      )}
+                    >
+                      <Minus className={cn(
+                        "h-8 w-8 mb-1",
+                        sentiment === "neutral" ? "text-amber-600" : "text-muted-foreground"
+                      )} />
+                      <span className={cn(
+                        "font-medium",
+                        sentiment === "neutral" ? "text-amber-600" : "text-muted-foreground"
+                      )}>
+                        Neutral
+                      </span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setSentiment("bearish")}
+                      className={cn(
+                        "flex flex-col items-center justify-center h-20 rounded-md border-2 transition-all",
+                        sentiment === "bearish"
+                          ? "bg-red-50 border-red-600 dark:bg-red-950/30 dark:border-red-500"
+                          : "border-muted hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+                      )}
+                    >
+                      <TrendingDown className={cn(
+                        "h-8 w-8 mb-1",
+                        sentiment === "bearish" ? "text-red-600" : "text-muted-foreground"
+                      )} />
+                      <span className={cn(
+                        "font-medium",
+                        sentiment === "bearish" ? "text-red-600" : "text-muted-foreground"
+                      )}>
+                        Bearish
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="images" className="space-y-4">
+              <ImageUpload 
+                images={images} 
+                onChange={setImages} 
+              />
+            </TabsContent>
+          </Tabs>
           
           {/* Template Selection */}
           <div className="space-y-3">
             <Label htmlFor="template">Journal Template</Label>
-            <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-              <SelectTrigger className="h-10">
-                <SelectValue placeholder="Select a template (optional)" />
+            <DialogSafeSelect
+              value={selectedTemplate}
+              onValueChange={setSelectedTemplate}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a template" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No template</SelectItem>
@@ -258,94 +324,121 @@ export function JournalEntryDialog({ isOpen, setIsOpen, entry, onSave, template,
                 <SelectItem value="reflection">Daily Reflection</SelectItem>
                 <SelectItem value="weekly">Weekly Review</SelectItem>
               </SelectContent>
-            </Select>
+            </DialogSafeSelect>
+          </div>
+          
+          {/* Tags Input */}
+          <div className="space-y-3">
+            <Label htmlFor="tags">Tags</Label>
+            <Input 
+              id="tags"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="Enter tags separated by commas (e.g. breakout, long, psychology)"
+              className="h-10"
+            />
             <p className="text-xs text-muted-foreground">
-              Templates help structure your journal entries
+              Tags help you categorize and find related journal entries later.
             </p>
           </div>
           
+          {/* Related Trades */}
           <div className="space-y-3">
-            <Label htmlFor="marketConditions">Market Conditions</Label>
-            <Textarea
-              id="marketConditions"
-              value={marketConditions}
-              onChange={(e) => setMarketConditions(e.target.value)}
-              placeholder="Describe overall market conditions, trends, or important events..."
-              className="min-h-32"
-            />
+            <div className="flex items-center justify-between">
+              <Label>Related Trades</Label>
+              
+              {tradesOnSelectedDate.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Found {tradesOnSelectedDate.length} trades on {format(date, "MMM d, yyyy")}
+                </p>
+              )}
+            </div>
+            
+            <div className="max-h-40 overflow-y-auto border rounded-md p-1">
+              {tradesOnSelectedDate.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No trades found for the selected date
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {tradesOnSelectedDate.map(trade => (
+                    <div 
+                      key={trade.id} 
+                      className="flex items-center space-x-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                      onClick={() => {
+                        // Toggle the selection of this trade
+                        if (relatedTradeIds.includes(trade.id)) {
+                          setRelatedTradeIds(relatedTradeIds.filter(id => id !== trade.id));
+                        } else {
+                          setRelatedTradeIds([...relatedTradeIds, trade.id]);
+                        }
+                      }}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={relatedTradeIds.includes(trade.id)}
+                        onChange={(e) => {
+                          e.stopPropagation(); // Stop event from bubbling to parent div
+                          // Toggle the selection directly
+                          if (e.target.checked) {
+                            setRelatedTradeIds([...relatedTradeIds, trade.id]);
+                          } else {
+                            setRelatedTradeIds(relatedTradeIds.filter(id => id !== trade.id));
+                          }
+                        }}
+                        className="h-4 w-4 cursor-pointer"
+                      />
+                      <div className="flex-grow truncate">
+                        <span className={cn(
+                          "font-medium",
+                          trade.direction === "long" ? "text-green-600" : "text-red-600"
+                        )}>
+                          {trade.direction === "long" ? "LONG" : "SHORT"}
+                        </span>{" "}
+                        <span className="font-mono">{trade.symbol}</span>{" "}
+                        <span className="text-muted-foreground">
+                          @ {trade.entryPrice}
+                        </span>
+                      </div>
+                      
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedTrade(trade);
+                          setIsChartOpen(true);
+                        }}
+                      >
+                        <LineChart className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           
+          {/* Lessons Learned */}
           <div className="space-y-3">
-            <Label htmlFor="lessons">Lessons Learned</Label>
+            <Label htmlFor="lessons">Key Lessons & Takeaways</Label>
             <Textarea
               id="lessons"
               value={lessons}
               onChange={(e) => setLessons(e.target.value)}
-              placeholder="What did you learn today? What would you do differently next time?"
-              className="min-h-32"
+              placeholder="What did you learn from this trading session? What would you do differently next time?"
+              className="h-24"
             />
-          </div>
-          
-          {tradesOnSelectedDate.length > 0 && (
-            <div className="space-y-3">
-              <Label>Related Trades on {format(date, "MMM d, yyyy")}</Label>
-              <div className="max-h-40 overflow-y-auto rounded-md border p-2">
-                {tradesOnSelectedDate.map((trade) => (
-                  <div key={trade.id} className="flex items-center space-x-2 py-1">
-                    <input
-                      type="checkbox"
-                      id={`trade-${trade.id}`}
-                      checked={relatedTradeIds.includes(trade.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setRelatedTradeIds([...relatedTradeIds, trade.id]);
-                        } else {
-                          setRelatedTradeIds(relatedTradeIds.filter(id => id !== trade.id));
-                        }
-                      }}
-                      className="h-4 w-4 rounded border-gray-300"
-                    />
-                    <Label 
-                      htmlFor={`trade-${trade.id}`} 
-                      className="cursor-pointer text-sm flex-1"
-                    >
-                      {trade.symbol} ({trade.direction}) - {trade.quantity} shares at ${trade.entryPrice.toFixed(2)}
-                    </Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2 text-xs flex items-center gap-1 border-dashed hover:bg-accent"
-                      onClick={() => {
-                        setSelectedTrade(trade);
-                        setIsChartOpen(true);
-                      }}
-                    >
-                      <LineChart className="h-3.5 w-3.5" />
-                      <span>Chart</span>
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          <div className="space-y-3">
-            <Label htmlFor="tags">Tags</Label>
-            <Input
-              id="tags"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder="Enter tags separated by commas"
-              className="h-10"
-            />
-            <p className="text-xs text-muted-foreground">
-              Separate tags with commas (e.g., "morning, gap, breakout")
-            </p>
           </div>
           
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsOpen(false)}
+            >
               Cancel
             </Button>
             <Button type="submit">Save Entry</Button>

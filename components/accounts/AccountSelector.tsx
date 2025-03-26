@@ -43,6 +43,18 @@ export function AccountSelector({
   const selectedAccount = accounts.find(a => a.id === selectedId);
   const hasCreateNewOption = allowCreateNew && createNewId;
 
+  // Ensure selected account exists
+  useEffect(() => {
+    if (selectedId && !selectedAccount && selectedId !== createNewId) {
+      console.warn(`Selected account ${selectedId} not found`);
+      // Optionally reset to default account
+      const defaultAccount = accounts[0];
+      if (defaultAccount) {
+        onSelect(defaultAccount.id);
+      }
+    }
+  }, [selectedId, selectedAccount, accounts, createNewId, onSelect]);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -107,24 +119,21 @@ export function AccountSelector({
                   <CommandSeparator />
                 </>
               )}
-
-              {accounts.map(account => (
+              {accounts.map((account) => (
                 <CommandItem
                   key={account.id}
                   onSelect={() => {
                     onSelect(account.id);
                     setOpen(false);
                   }}
-                  className="text-sm flex items-center py-2"
+                  className="text-sm flex items-center py-3"
                 >
                   <div className="flex items-center gap-2 w-full">
-                    {account.color && (
-                      <div 
-                        className="w-4 h-4 rounded-full flex-shrink-0" 
-                        style={{ backgroundColor: account.color || '#888888' }}
-                      />
-                    )}
-                    <span className="truncate">{account.name}</span>
+                    <div 
+                      className="w-4 h-4 rounded-full" 
+                      style={{ backgroundColor: account.color || '#888888' }}
+                    />
+                    <span>{account.name}</span>
                   </div>
                   {selectedId === account.id && <Check className="h-4 w-4 ml-auto text-primary" />}
                 </CommandItem>

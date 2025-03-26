@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Calendar, Tag, Activity, Bookmark, BookOpen, Lightbulb, SmilePlus, Pencil, FilterX, FileText, Star } from "lucide-react";
+import { Plus, Calendar, Tag, Activity, Bookmark, BookOpen, Lightbulb, SmilePlus, Pencil, FilterX, FileText, Star, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { JournalEntryDialog } from "./JournalEntryDialog";
-import { JournalEntry } from "@/types/journal";
+import { JournalEntry, JournalImage } from "@/types/journal";
 import { format, parseISO, isSameMonth, isToday, isYesterday, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ImageViewer } from "./ImageViewer";
 
 // Journal entry templates
 const JOURNAL_TEMPLATES = [
@@ -54,7 +55,8 @@ const MOOD_OPTIONS = [
   { value: "anxious", label: "Anxious", emoji: "😰" },
   { value: "frustrated", label: "Frustrated", emoji: "😤" },
   { value: "overwhelmed", label: "Overwhelmed", emoji: "😵" },
-  { value: "distracted", label: "Distracted", emoji: "🤔" }
+  { value: "distracted", label: "Distracted", emoji: "🤔" },
+  { value: "tilting", label: "Tilting", emoji: "😡🎰" },
 ];
 
 export function JournalEntries() {
@@ -64,6 +66,9 @@ export function JournalEntries() {
   const [activeTab, setActiveTab] = useState("all");
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerImages, setViewerImages] = useState<JournalImage[]>([]);
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
   
   // Load journal entries from localStorage
   useEffect(() => {
@@ -242,6 +247,13 @@ export function JournalEntries() {
     if (count < 7) return "🔥🔥";
     if (count < 14) return "🔥🔥🔥";
     return "🔥🔥🔥🔥";
+  };
+  
+  // Add a function to open the image viewer
+  const openImageViewer = (images: JournalImage[], initialIndex: number = 0) => {
+    setViewerImages(images);
+    setViewerInitialIndex(initialIndex);
+    setViewerOpen(true);
   };
   
   return (
@@ -548,6 +560,38 @@ export function JournalEntries() {
                           {entry.content}
                         </p>
                         
+                        {entry.images && entry.images.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            <div className="font-medium text-sm text-muted-foreground">
+                              <ImageIcon className="inline-block h-3.5 w-3.5 mr-1" />
+                              {entry.images.length} {entry.images.length === 1 ? 'Image' : 'Images'}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 mt-1">
+                              {entry.images.slice(0, 2).map((image, index) => (
+                                <div 
+                                  key={image.id} 
+                                  className="relative rounded-md overflow-hidden aspect-video bg-muted cursor-pointer"
+                                  onClick={() => openImageViewer(entry.images || [], index)}
+                                >
+                                  <img 
+                                    src={image.url} 
+                                    alt={image.caption || "Trading chart"} 
+                                    className="object-cover w-full h-full"
+                                  />
+                                </div>
+                              ))}
+                              {entry.images.length > 2 && (
+                                <div 
+                                  className="absolute bottom-2 right-2 bg-primary text-primary-foreground text-xs rounded-full h-6 w-6 flex items-center justify-center cursor-pointer"
+                                  onClick={() => openImageViewer(entry.images || [], 0)}
+                                >
+                                  +{entry.images.length - 2}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
                         {entry.tags && entry.tags.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             {entry.tags.map((tag) => (
@@ -599,6 +643,14 @@ export function JournalEntries() {
         onSave={handleSaveEntry}
         template={selectedTemplate}
         moodOptions={MOOD_OPTIONS}
+      />
+      
+      {/* Image Viewer */}
+      <ImageViewer 
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        images={viewerImages}
+        initialIndex={viewerInitialIndex}
       />
     </div>
   );

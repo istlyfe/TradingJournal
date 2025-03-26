@@ -11,6 +11,8 @@ import {
   getFilteredRowModel,
   OnChangeFn,
   Updater,
+  ColumnFiltersState,
+  getPaginationRowModel,
 } from "@tanstack/react-table";
 import { useState } from "react";
 import {
@@ -33,11 +35,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
-  onDeleteRows?: (rowIds: string[]) => void;
+  onDeleteRows?: (rowIndices: number[]) => void;
   enableRowSelection?: boolean;
   getRowId?: (row: TData) => string;
   onRowSelectionChange?: (rowIds: string[]) => void;
@@ -48,138 +51,195 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   onDeleteRows,
-  enableRowSelection = false,
-  getRowId = (row: any) => row.id,
-  onRowSelectionChange,
+  ...props
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const handleRowSelectionChange = (updaterOrValue: Updater<RowSelectionState>) => {
-    // Handle both function updaters and direct value assignments
-    const newRowSelection = typeof updaterOrValue === 'function' 
-      ? updaterOrValue(rowSelection)
-      : updaterOrValue;
-    
-    setRowSelection(newRowSelection);
-    
-    if (onRowSelectionChange) {
-      // Extract selected row IDs
-      const selectedIds = Object.keys(newRowSelection)
-        .filter(key => newRowSelection[key])
-        .map(index => {
-          const row = data[parseInt(index, 10)];
-          return getRowId(row);
-        });
-      
-      onRowSelectionChange(selectedIds);
-    }
+  // Handle row selection change with preventPropagation
+  const handleRowSelectionChange = (updatedRowSelection: any) => {
+    console.log("Row selection changed:", updatedRowSelection);
+    setRowSelection(updatedRowSelection);
   };
 
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
+    onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     onRowSelectionChange: handleRowSelectionChange,
-    enableRowSelection,
     state: {
       sorting,
+      columnFilters,
       rowSelection,
     },
-    getRowId: (row, index) => String(index), // Use index for internal selection management
+    enableRowSelection: true,
+    enableMultiRowSelection: true,
+    initialState: {
+      pagination: {
+        pageSize: 100, // Show 100 trades per page by default
+      },
+    },
   });
 
-  const selectedRows = table.getSelectedRowModel().rows;
-
-  const handleDeleteSelected = () => {
-    if (onDeleteRows && selectedRows.length > 0) {
-      const rowIds = selectedRows.map(row => getRowId(row.original));
-      onDeleteRows(rowIds);
-      setRowSelection({});
-      setDeleteDialogOpen(false);
+  // Delete selected rows
+  const handleDeleteRows = () => {
+    // Get selected row indices more directly
+    const selectedIndices: number[] = [];
+    
+    // Loop through rowSelection to get selected indices
+    for (const [indexStr, isSelected] of Object.entries(rowSelection)) {
+      if (isSelected) {
+        const index = parseInt(indexStr, 10);
+        if (!isNaN(index)) {
+          selectedIndices.push(index);
+        }
+      }
+    }
+    
+    console.log("Raw rowSelection:", rowSelection);
+    console.log("Selected row indices to delete:", selectedIndices);
+    
+    if (selectedIndices.length > 0 && onDeleteRows) {
+      onDeleteRows(selectedIndices);
+      table.resetRowSelection();
+      setShowDeleteDialog(false);
+    } else {
+      console.error("No rows selected or no delete handler provided");
+      setShowDeleteDialog(false);
     }
   };
 
   return (
     <div className="space-y-4">
-      {selectedRows.length > 0 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            {selectedRows.length} row(s) selected
-          </div>
-          <Button 
-            variant="destructive" 
-            size="sm" 
-            onClick={() => setDeleteDialogOpen(true)}
+      <div className="flex items-center justify-between">
+        <Input
+          placeholder="Filter symbols..."
+          value={(table.getColumn("symbol")?.getFilterValue() as string) ?? ""}
+          onChange={(event) =>
+            table.getColumn("symbol")?.setFilterValue(event.target.value)
+          }
+          className="max-w-sm"
+        />
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.setPageSize(table.getFilteredRowModel().rows.length || data.length)}
+            className="whitespace-nowrap"
           >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete Selected
+            Show All
+          </Button>
+          {Object.keys(rowSelection).length > 0 && (
+            <Button 
+              variant="destructive" 
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              Delete Selected
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-md border">
+        <div className="max-h-[70vh] overflow-auto">
+          <Table>
+            <TableHeader className="sticky top-0 bg-background z-10">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    return (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                    className={row.getIsSelected() ? "bg-muted/50" : ""}
+                    onClick={(e) => {
+                      // Don't toggle selection when clicking checkboxes directly
+                      // The checkbox cell handles its own click
+                      if (!(e.target as HTMLElement).closest('[role="checkbox"]') && 
+                          !(e.target as HTMLElement).closest('[data-row-select-bypass="true"]')) {
+                        row.toggleSelected();
+                      }
+                    }}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="h-24 text-center">
+                    No results.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-end space-x-2 py-4">
+        <div className="flex-1 text-sm text-muted-foreground">
+          Showing {table.getFilteredRowModel().rows.length} of {data.length} trades
+        </div>
+        <div className="space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Next
           </Button>
         </div>
-      )}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
       </div>
-      
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Selected Trades</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete {selectedRows.length} selected {selectedRows.length === 1 ? 'trade' : 'trades'}?
-              This action cannot be undone.
+              Are you sure you want to delete {Object.keys(rowSelection).length} trade{Object.keys(rowSelection).length > 1 ? 's' : ''}? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteSelected} className="bg-destructive text-destructive-foreground">
-              Delete
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteRows}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

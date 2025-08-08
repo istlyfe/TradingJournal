@@ -1,0 +1,131 @@
+name: Sync tasks from CSV
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/trade_journal_tasks.csv'
+  schedule:
+    - cron: '0 9 * * 1' # Every Monday 09:00 UTC
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create or update issues from CSV
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = '.github/workflows/trade_journal_tasks.csv';
+            if (!fs.existsSync(path)) {
+              core.setFailed('CSV file not found: ' + path);
+            }
+
+            const csv = fs.readFileSync(path, 'utf8').trim();
+            const lines = csv.split(/\r?\n/).filter(Boolean);
+            if (lines.length <= 1) {
+              core.info('No task lines found in CSV.');
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Load existing labels to avoid re-creating
+            let existingLabels = [];
+            try {
+              existingLabels = (await github.paginate(github.rest.issues.listLabelsForRepo, { owner, repo, per_page: 100 })).map(l => l.name);
+            } catch (e) {
+              core.warning('Could not list labels: ' + e.message);
+            }
+
+            function parseLine(line) {
+              // Simple CSV split (file is simple and does not use quoted commas)
+              const parts = line.split(',').map(s => s.trim());
+              const title = parts[0] || '';
+              const note = parts[1] || '';
+              const dueDate = parts[parts.length - 1] || '';
+              // Everything between index 2 and last-1 is treated as labels (supports multiple labels)
+              const labels = parts.slice(2, parts.length - 1).filter(Boolean);
+              return { title, note, labels, dueDate };
+            }
+
+            // Skip header (Title, Note, Labels... , Due Date)
+            for (let i = 1; i < lines.length; i++) {
+              const raw = lines[i];
+              if (!raw || raw.startsWith('#')) continue;
+              const { title, note, labels, dueDate } = parseLine(raw);
+              if (!title) continue;
+
+              // Construct label set (include due:YYYY-MM-DD if present)
+              const normalizedLabels = [...labels];
+              if (dueDate) normalizedLabels.push(`due:${dueDate}`);
+
+              // Ensure labels exist
+              for (const lbl of normalizedLabels) {
+                if (!existingLabels.includes(lbl)) {
+                  try {
+                    await github.rest.issues.createLabel({
+                      owner,
+                      repo,
+                      name: lbl,
+                      color: '7C3AED',
+                      description: 'Auto-created from CSV'
+                    });
+                    existingLabels.push(lbl);
+                    core.info(`Created label: ${lbl}`);
+                  } catch (e) {
+                    if (e.status !== 422) {
+                      core.warning(`Label create failed for ${lbl}: ${e.message}`);
+                    }
+                  }
+                }
+              }
+
+              // Try to find an existing issue by exact title
+              let issueNumber = null;
+              try {
+                const search = await github.rest.search.issuesAndPullRequests({
+                  q: `repo:${owner}/${repo} is:issue in:title "${title.replace(/"/g, '\\"')}"`
+                });
+                const hit = search.data.items.find(it => it.title === title && !it.pull_request);
+                if (hit) issueNumber = hit.number;
+              } catch (e) {
+                core.warning('Issue search failed: ' + e.message);
+              }
+
+              const bodySections = [];
+              if (note) bodySections.push(note);
+              if (dueDate) bodySections.push(`Due Date: ${dueDate}`);
+              if (labels.length) bodySections.push(`Labels: ${labels.join(', ')}`);
+              const body = bodySections.join('\n\n');
+
+              if (issueNumber) {
+                await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  body: body || undefined,
+                  labels: normalizedLabels.length ? normalizedLabels : undefined,
+                });
+                core.info(`Updated #${issueNumber} - ${title}`);
+              } else {
+                const created = await github.rest.issues.create({
+                  owner,
+                  repo,
+                  title,
+                  body: body || undefined,
+                  labels: normalizedLabels,
+                });
+                core.info(`Created #${created.data.number} - ${title}`);
+              }
+            }

@@ -6,48 +6,31 @@ on:
 permissions:
   contents: read
   issues: write
-  projects: write
 
 jobs:
   setup-project:
     runs-on: ubuntu-latest
     steps:
-      - name: Create GitHub Project
+      - name: List issues and suggest project setup
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create a new project
-          echo "Creating Trading Journal Project..."
+          echo "Checking created issues..."
           
-          # Check if project already exists
-          existing_project=$(gh project list --owner ${{ github.repository_owner }} --format json | jq -r '.projects[] | select(.title == "Trading Journal Development") | .number' || echo "")
+          # List all issues that start with [W
+          echo "=== Trading Journal Issues ==="
+          gh issue list --limit 100 --json number,title,labels --jq '.[] | select(.title | startswith("[W")) | "Issue #\(.number): \(.title) - Labels: \(.labels | map(.name) | join(", "))"'
           
-          if [[ -n "$existing_project" ]]; then
-            echo "Project already exists: #$existing_project"
-            project_number=$existing_project
-          else
-            # Create new project
-            project_data=$(gh project create --title "Trading Journal Development" --body "Track development tasks for the trading journal application" --format json)
-            project_number=$(echo "$project_data" | jq -r '.number')
-            echo "Created new project: #$project_number"
-          fi
-          
-          # Add project fields
-          echo "Setting up project fields..."
-          
-          # Add Priority field
-          gh project field-create $project_number --name "Priority" --type "single_select" --single-select-option "🔴 High" --single-select-option "🟡 Medium" --single-select-option "🟢 Low" || echo "Priority field may already exist"
-          
-          # Add Week field  
-          gh project field-create $project_number --name "Sprint" --type "single_select" --single-select-option "Week 1" --single-select-option "Week 2" --single-select-option "Week 3" --single-select-option "Week 4" --single-select-option "Week 5" --single-select-option "Week 6" || echo "Sprint field may already exist"
-          
-          # Add all existing issues to the project
-          echo "Adding issues to project..."
-          gh issue list --limit 100 --json number,title | jq -r '.[] | select(.title | startswith("[W")) | .number' | while read issue_number; do
-            if [[ -n "$issue_number" ]]; then
-              echo "Adding issue #$issue_number to project"
-              gh project item-add $project_number --content-id $(gh issue view $issue_number --json id --jq '.id') || echo "Failed to add issue #$issue_number"
-            fi
-          done
-          
-          echo "Project setup complete! Visit: https://github.com/${{ github.repository }}/projects/$project_number"
+          echo ""
+          echo "=== Manual Project Setup Instructions ==="
+          echo "1. Go to https://github.com/${{ github.repository }}/projects"
+          echo "2. Click 'New project'"
+          echo "3. Choose 'Board' template"
+          echo "4. Name it 'Trading Journal Development'"
+          echo "5. Add the issues above to organize your development workflow"
+          echo ""
+          echo "Or use GitHub's built-in project features:"
+          echo "- Go to Issues tab"
+          echo "- Use Milestones for each week"
+          echo "- Use Labels to filter by category (API, UI, Database, etc.)"
+          echo "- Use Assignees to track ownership"

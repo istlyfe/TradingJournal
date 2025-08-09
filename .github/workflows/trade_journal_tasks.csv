@@ -1,0 +1,42 @@
+Title,Note,Labels,Due Date
+# Trading Journal Tasks - Auto-sync to GitHub Issues (test trigger)
+[W1] Re-enable middleware.ts guards,,Week 1,API,2025-08-14
+[W1] Verify /api/auth/* cookies + refresh,,Week 1,API,2025-08-14
+[W1] Implement GET/POST Trades API parity with current UI,,Week 1,API,2025-08-14
+[W1] Refactor useTrades to fetch/sync with API,,Week 1,API,2025-08-14
+[W1] Refactor useAccounts to fetch/sync with API,,Week 1,API,2025-08-14
+[W1] LocalStorage → DB migration script,,Week 1,Database,2025-08-14
+[W1] "Migrate now" CTA in UI,,Week 1,UI,2025-08-14
+[W1] Minimal optimistic UI & cache invalidation,,Week 1,UI,2025-08-14
+
+[W2] API: bulk /trades/import endpoint with validation,,Week 2,API,2025-08-21
+[W2] CSV import success/fail report + dedupe,,Week 2,UI,2025-08-21
+[W2] Edit/delete trade flow (optimistic updates + rollback),,Week 2,UI,2025-08-21
+[W2] Market data helpers: error states + retries,,Week 2,API,2025-08-21
+
+[W3] Add timeframe selector + persist preference,,Week 3,UI,2025-08-28
+[W3] Symbol performance bar chart + sortable list,,Week 3,UI,2025-08-28
+[W3] Setup performance with win rate + net P&L,,Week 3,Analytics,2025-08-28
+[W3] SSR/edge-compatible analytics endpoint,,Week 3,API,2025-08-28
+[W3] Wire analytics page to endpoint with client-side fallback,,Week 3,Analytics,2025-08-28
+[W3] Chart polish: tooltips, empty states, consistent keys,,Week 3,UI,2025-08-28
+
+[W4] Templates: create/edit/delete + apply in dialog,,Week 4,UI,2025-09-04
+[W4] Images: upload (S3/local), progress, error states,,Week 4,UI,2025-09-04
+[W4] Mood distribution widget on analytics page,,Week 4,Analytics,2025-09-04
+[W4] Journal list filters: text, tag, date, mood,,Week 4,UI,2025-09-04
+
+[W5] Broker settings persisted to DB,,Week 5,API,2025-09-11
+[W5] Account manager: create/edit/delete/archive; default account toggle,,Week 5,UI,2025-09-11
+[W5] Color picker + validation,,Week 5,UI,2025-09-11
+[W5] Theme preference persisted per user,,Week 5,UI,2025-09-11
+
+[W6] API integration tests (auth/accounts/trades/analytics),,Week 6,Testing,2025-09-18
+[W6] Metrics unit tests (edge cases, empty data),,Week 6,Testing,2025-09-18
+[W6] 3–5 Playwright E2E flows (login → add trade → analytics),,Week 6,Testing,2025-09-18
+[W6] Bundle size check + split charts where needed,,Week 6,Performance,2025-09-18
+[W6] Add Sentry (or equivalent) for monitoring,,Week 6,Monitoring,2025-09-18
+[W6] Vercel deployment + production DB migration,,Week 6,Deployment,2025-09-18
+[TEST] GitHub Actions workflow test,Testing CSV sync functionality,Test,GitHub Actions,2025-08-08[NOW] Test workflow trigger Fri Aug  8 20:13:05 EDT 2025
+
+[NOW] 2025-08-08 20:13:23 - Workflow test trigger

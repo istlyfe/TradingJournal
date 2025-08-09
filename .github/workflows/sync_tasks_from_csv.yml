@@ -36,7 +36,7 @@ jobs:
           echo "Processing CSV file..."
           
           # Skip header line and process each task
-          tail -n +2 .github/workflows/trade_journal_tasks.csv | while IFS=',' read -r title note labels due_date; do
+          tail -n +2 .github/workflows/trade_journal_tasks.csv | while IFS=',' read -r title note label_col1 label_col2 due_date; do
             # Skip empty lines or comments
             if [[ -z "$title" || "$title" == \#* ]]; then
               continue
@@ -45,7 +45,8 @@ jobs:
             # Clean up the fields
             title=$(echo "$title" | xargs)
             note=$(echo "$note" | xargs)
-            labels=$(echo "$labels" | xargs)
+            label_col1=$(echo "$label_col1" | xargs)
+            label_col2=$(echo "$label_col2" | xargs)
             due_date=$(echo "$due_date" | xargs)
             
             # Skip if title is empty
@@ -55,19 +56,33 @@ jobs:
             
             echo "Processing: $title"
             
-            # Build labels array
-            label_args=""
-            if [[ -n "$labels" ]]; then
-              # Split labels by space and add each as a label
-              for label in $labels; do
-                label_args="$label_args --label \"$label\""
-              done
+            # Collect all labels
+            all_labels=()
+            if [[ -n "$label_col1" ]]; then
+              all_labels+=("$label_col1")
+            fi
+            if [[ -n "$label_col2" ]]; then
+              all_labels+=("$label_col2")
+            fi
+            if [[ -n "$due_date" ]]; then
+              all_labels+=("due:$due_date")
             fi
             
-            # Add due date as label if present
-            if [[ -n "$due_date" ]]; then
-              label_args="$label_args --label \"due:$due_date\""
-            fi
+            # Create labels if they don't exist
+            for label in "${all_labels[@]}"; do
+              if [[ -n "$label" ]]; then
+                echo "Ensuring label exists: $label"
+                gh label create "$label" --color "7C3AED" --description "Auto-created from CSV" 2>/dev/null || echo "Label $label already exists or failed to create"
+              fi
+            done
+            
+            # Build label arguments
+            label_args=""
+            for label in "${all_labels[@]}"; do
+              if [[ -n "$label" ]]; then
+                label_args="$label_args --label \"$label\""
+              fi
+            done
             
             # Build body
             body=""

@@ -1,4 +1,4 @@
-Title,Note,Labels,Due Date
+Title,Note,Week,Category,Due Date
 # Trading Journal Tasks - Auto-sync to GitHub Issues (test trigger)
 [W1] Re-enable middleware.ts guards,,Week 1,API,2025-08-14
 [W1] Verify /api/auth/* cookies + refresh,,Week 1,API,2025-08-14

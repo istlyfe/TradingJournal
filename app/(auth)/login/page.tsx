@@ -30,6 +30,7 @@ function LoginPageContent() {
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState("");
   const [isDemoLoading, setIsDemoLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams?.get('redirect') || '/dashboard';
@@ -61,6 +62,7 @@ function LoginPageContent() {
     }
     
     try {
+      setIsSubmitting(true);
       const res = await signIn('credentials', { redirect: false, email, password });
       if (res?.ok) {
         toast({
@@ -76,6 +78,8 @@ function LoginPageContent() {
     } catch (error) {
       console.error("Login error:", error);
       setFormError("There was an error logging in. Please try again later.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -159,7 +163,7 @@ function LoginPageContent() {
                 placeholder="your.email@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading || isDemoLoading}
+                disabled={isSubmitting || isDemoLoading}
                 className="focus:border-primary"
                 autoComplete="email"
                 required
@@ -182,7 +186,7 @@ function LoginPageContent() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading || isDemoLoading}
+                disabled={isSubmitting || isDemoLoading}
                 className="focus:border-primary"
                 autoComplete="current-password"
                 required
@@ -194,9 +198,9 @@ function LoginPageContent() {
             <Button 
               type="submit" 
               className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-700" 
-              disabled={status === 'loading' || isDemoLoading}
+              disabled={isSubmitting || isDemoLoading}
             >
-              {isLoading ? (
+              {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Signing In...

@@ -25,10 +25,21 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useSession, signOut } from 'next-auth/react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { LogOut } from 'lucide-react';
 
 export function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const { data: session } = useSession();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -94,6 +105,16 @@ export function TopNav() {
       return account?.color || '#7C3AED';
     }
     return '#7C3AED';
+  };
+
+  const getUserInitials = () => {
+    const name = session?.user?.name || session?.user?.email || 'U';
+    return name
+      .split(' ')
+      .map(part => part[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
   };
 
   // Handler for when dialog closes
@@ -246,18 +267,32 @@ export function TopNav() {
           </TooltipProvider>
           
           {/* User Menu */}
-          <div className="relative">
-            <Button 
-              variant="ghost" 
-              className="h-8 w-8 rounded-full" 
-              size="icon"
-              onClick={() => {}}
-            >
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-primary/10 text-primary">U</AvatarFallback>
-              </Avatar>
-            </Button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 rounded-full" size="icon">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {getUserInitials()}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium">{session?.user?.name || 'Signed in'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{session?.user?.email}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push('/dashboard')}>Dashboard</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push('/settings')}>Settings</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => signOut({ callbackUrl: '/' })}>
+                <LogOut className="mr-2 h-4 w-4" /> Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

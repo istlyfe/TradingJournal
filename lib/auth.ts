@@ -87,6 +87,11 @@ export function verifyToken(token: string): DecodedToken | string {
   }
 }
 
+// NextAuth helper
+export const authConfig = {
+  secret: process.env.NEXTAUTH_SECRET || getJwtSecret(),
+};
+
 // Store refresh token in database
 export async function storeRefreshToken(userId: string, token: string, expiresAt: Date) {
   return prisma.refreshToken.create({

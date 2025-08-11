@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { verifyToken } from './lib/auth';
+import { withAuth } from 'next-auth/middleware';
 
 // Define routes that don't require authentication
 const publicRoutes = [
@@ -18,38 +18,21 @@ const isPublicRoute = (path: string) => {
   );
 };
 
-export function middleware(request: NextRequest) {
-  // Bypass all authentication for now
-  return NextResponse.next();
-  
-  /* Authentication disabled for testing
-  const path = request.nextUrl.pathname;
-  
-  // Allow public routes without authentication
-  if (isPublicRoute(path)) {
+export default withAuth(
+  function middleware(req: NextRequest) {
     return NextResponse.next();
+  },
+  {
+    callbacks: {
+      authorized: ({ token, req }) => {
+        const path = req.nextUrl.pathname;
+        if (isPublicRoute(path)) return true;
+        return !!token;
+      },
+    },
+    pages: { signIn: '/login' },
   }
-  
-  // Skip auth checking for API routes during development
-  if (process.env.NODE_ENV === 'development' && path.startsWith('/api/')) {
-    return NextResponse.next();
-  }
-
-  // Check for access token
-  const accessToken = request.cookies.get('accessToken')?.value;
-  
-  // If no token and not on a public route, redirect to login
-  if (!accessToken && !isPublicRoute(path)) {
-    // Store the original URL to redirect back after login
-    const url = new URL('/login', request.url);
-    url.searchParams.set('redirect', path);
-    return NextResponse.redirect(url);
-  }
-  
-  // Continue with request if token exists
-  return NextResponse.next();
-  */
-}
+);
 
 // Only run middleware on specific paths
 export const config = {
@@ -60,6 +43,5 @@ export const config = {
     '/analytics/:path*',
     '/accounts/:path*',
     '/settings/:path*',
-    '/api/:path*',
   ],
 }; 

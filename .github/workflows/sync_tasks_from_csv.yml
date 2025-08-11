@@ -5,113 +5,154 @@ on:
   push:
     paths:
       - '.github/workflows/trade_journal_tasks.csv'
+      - '.github/workflows/sync_tasks_from_csv.yml'
   schedule:
     - cron: '0 9 * * 1' # Every Monday 09:00 UTC
 
 permissions:
   contents: read
   issues: write
+  pull-requests: read
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        run: |
-          git clone https://github.com/${{ github.repository }} .
-          git checkout ${{ github.sha }}
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Create or update issues from CSV
+        uses: actions/github-script@v7
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          # Check if CSV file exists
-          if [ ! -f ".github/workflows/trade_journal_tasks.csv" ]; then
-            echo "CSV file not found"
-            exit 1
-          fi
+          CSV_PATH: .github/workflows/trade_journal_tasks.csv
+          PROJECT_COLUMN_ID: ${{ secrets.PROJECT_COLUMN_ID }} # optional: classic projects column ID
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
 
-          # Read CSV and create issues using GitHub CLI (pre-installed on runners)
-          echo "Processing CSV file..."
-          
-          # Skip header line and process each task
-          tail -n +2 .github/workflows/trade_journal_tasks.csv | while IFS=',' read -r title note label_col1 label_col2 due_date; do
-            # Skip empty lines or comments
-            if [[ -z "$title" || "$title" == \#* ]]; then
-              continue
-            fi
-            
-            # Clean up the fields
-            title=$(echo "$title" | xargs)
-            note=$(echo "$note" | xargs)
-            label_col1=$(echo "$label_col1" | xargs)
-            label_col2=$(echo "$label_col2" | xargs)
-            due_date=$(echo "$due_date" | xargs)
-            
-            # Skip if title is empty
-            if [[ -z "$title" ]]; then
-              continue
-            fi
-            
-            echo "Processing: $title"
-            
-            # Collect all labels
-            all_labels=()
-            if [[ -n "$label_col1" ]]; then
-              all_labels+=("$label_col1")
-            fi
-            if [[ -n "$label_col2" ]]; then
-              all_labels+=("$label_col2")
-            fi
-            if [[ -n "$due_date" ]]; then
-              all_labels+=("due:$due_date")
-            fi
-            
-            # Create labels if they don't exist
-            for label in "${all_labels[@]}"; do
-              if [[ -n "$label" ]]; then
-                echo "Ensuring label exists: $label"
-                gh label create "$label" --color "7C3AED" --description "Auto-created from CSV" 2>/dev/null || echo "Label $label already exists or failed to create"
-              fi
-            done
-            
-            # Build label arguments
-            label_args=""
-            for label in "${all_labels[@]}"; do
-              if [[ -n "$label" ]]; then
-                label_args="$label_args --label \"$label\""
-              fi
-            done
-            
-            # Build body
-            body=""
-            if [[ -n "$note" ]]; then
-              body="$note"
-            fi
-            if [[ -n "$due_date" ]]; then
-              if [[ -n "$body" ]]; then
-                body="$body\n\n"
-              fi
-              body="${body}Due Date: $due_date"
-            fi
-            
-            # Check if issue already exists
-            existing_issue=$(gh issue list --search "\"$title\" in:title" --json number,title --jq ".[] | select(.title == \"$title\") | .number" || echo "")
-            
-            if [[ -n "$existing_issue" ]]; then
-              echo "Updating existing issue #$existing_issue"
-              if [[ -n "$body" ]]; then
-                echo -e "$body" | gh issue edit "$existing_issue" --body-file -
-              fi
-              # Note: GitHub CLI doesn't support updating labels easily, so we skip label updates for existing issues
-            else
-              echo "Creating new issue"
-              if [[ -n "$body" ]]; then
-                echo -e "$body" | gh issue create --title "$title" --body-file - $label_args
-              else
-                gh issue create --title "$title" $label_args
-              fi
-            fi
-            
-          done
+            const path = process.env.CSV_PATH || '.github/workflows/trade_journal_tasks.csv';
+            if (!fs.existsSync(path)) {
+              core.setFailed('CSV file not found: ' + path);
+              return;
+            }
+
+            const csvRaw = fs.readFileSync(path, 'utf8');
+            const lines = csvRaw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+            if (lines.length <= 1) {
+              core.info('No task lines found in CSV.');
+              return;
+            }
+
+            // CSV header expected: Title,Note,Week,Category,Due Date
+            const header = lines[0].toLowerCase();
+            const hasExpectedHeader = header.includes('title') && header.includes('week') && header.includes('category');
+            if (!hasExpectedHeader) {
+              core.warning('Unexpected CSV header. Expected columns: Title,Note,Week,Category,Due Date');
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            async function ensureLabel(name, color = '7C3AED', description = 'Auto-created from CSV') {
+              if (!name) return;
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name });
+              } catch (e) {
+                if (e.status === 404) {
+                  await github.rest.issues.createLabel({ owner, repo, name, color, description });
+                  core.info(`Created label: ${name}`);
+                } else {
+                  core.warning(`Error checking/creating label ${name}: ${e.message}`);
+                }
+              }
+            }
+
+            async function ensureMilestone(title, dueOn) {
+              if (!title) return null;
+              const { data: milestones } = await github.rest.issues.listMilestones({ owner, repo, state: 'open' });
+              let ms = milestones.find(m => m.title === title);
+              if (!ms) {
+                const params = { owner, repo, title };
+                if (dueOn) params.due_on = new Date(dueOn).toISOString();
+                const { data } = await github.rest.issues.createMilestone(params);
+                core.info(`Created milestone: ${title}`);
+                return data.number;
+              }
+              return ms.number;
+            }
+
+            function parseLine(line) {
+              // simple CSV split (no quoted commas in file)
+              const parts = line.split(',');
+              while (parts.length < 5) parts.push('');
+              const [title, note, week, category, dueDate] = parts.map(s => (s || '').trim());
+              return { title, note, week, category, dueDate };
+            }
+
+            async function findExistingIssueByTitle(title) {
+              try {
+                const q = `repo:${owner}/${repo} is:issue in:title "${title.replace(/\"/g, '\\"')}"`;
+                const res = await github.rest.search.issuesAndPullRequests({ q });
+                const hit = res.data.items?.find(it => it.title === title && !it.pull_request);
+                return hit?.number || null;
+              } catch (e) {
+                core.warning('Issue search failed: ' + e.message);
+                return null;
+              }
+            }
+
+            async function addToProjectColumn(issueNumber) {
+              const columnId = process.env.PROJECT_COLUMN_ID;
+              if (!columnId) return;
+              try {
+                const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
+                await github.request('POST /projects/columns/{column_id}/cards', {
+                  column_id: Number(columnId),
+                  content_id: issue.id,
+                  content_type: 'Issue',
+                  headers: { accept: 'application/vnd.github.inertia-preview+json' },
+                });
+                core.info(`Added issue #${issueNumber} to project column ${columnId}`);
+              } catch (e) {
+                core.warning(`Failed adding issue #${issueNumber} to project column: ${e.message}`);
+              }
+            }
+
+            for (let i = 1; i < lines.length; i++) {
+              const raw = lines[i];
+              if (!raw || raw.startsWith('#') || raw.startsWith('[NOW]')) continue;
+              const { title, note, week, category, dueDate } = parseLine(raw);
+              if (!title) continue;
+
+              const labels = [];
+              if (week) labels.push(week);
+              if (category) labels.push(category);
+              if (dueDate) labels.push(`due:${dueDate}`);
+
+              for (const lbl of labels) {
+                await ensureLabel(lbl);
+              }
+
+              let milestoneNumber = null;
+              if (week) {
+                try { milestoneNumber = await ensureMilestone(week); } catch (e) { core.warning(`Milestone error for ${week}: ${e.message}`); }
+              }
+
+              const bodyParts = [];
+              if (note) bodyParts.push(note);
+              if (dueDate) bodyParts.push(`Due Date: ${dueDate}`);
+              if (week || category) bodyParts.push(`Meta: ${[week, category].filter(Boolean).join(' / ')}`);
+              const body = bodyParts.join('\n\n');
+
+              const existing = await findExistingIssueByTitle(title);
+              if (existing) {
+                await github.rest.issues.update({ owner, repo, issue_number: existing, body: body || undefined, labels: labels.length ? labels : undefined, milestone: milestoneNumber || undefined });
+                core.info(`Updated #${existing} - ${title}`);
+                await addToProjectColumn(existing);
+              } else {
+                const created = await github.rest.issues.create({ owner, repo, title, body: body || undefined, labels, milestone: milestoneNumber || undefined });
+                core.info(`Created #${created.data.number} - ${title}`);
+                await addToProjectColumn(created.data.number);
+              }
+            }

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { signIn, useSession } from "next-auth/react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { safeNavigate } from "@/lib/browser-utils";
 
@@ -35,16 +35,16 @@ function SignupPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const { signup, isAuthenticated } = useAuth();
+  const { status } = useSession();
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    if (isAuthenticated && !isSubmitting) {
+    if (status === 'authenticated' && !isSubmitting) {
       router.push("/dashboard");
     }
-  }, [isAuthenticated, isSubmitting, router]);
+  }, [status, isSubmitting, router]);
 
   // Password strength checker
   const getPasswordStrength = (pwd: string): { strength: string; color: string } => {
@@ -118,9 +118,10 @@ function SignupPageContent() {
         });
         
         // Slight delay before redirect to show success message
-        setTimeout(() => {
+        setTimeout(async () => {
+          await signIn('credentials', { redirect: false, email, password });
           safeNavigate("/dashboard");
-        }, 1500);
+        }, 800);
       } else {
         // Display the specific error message from the server
         setFormError(data.message || "Registration failed. Please try again.");

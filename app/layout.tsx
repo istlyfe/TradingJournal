@@ -4,6 +4,7 @@ import "./globals.css";
 import "@/components/ui/custom-styles.css";
 import { ThemeProviderWrapper } from "@/components/theme/ThemeProviderWrapper";
 import { AuthProvider } from "@/context/auth-context";
+import { SessionProvider } from "next-auth/react";
 import { Toaster } from "@/components/ui/toaster";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -46,12 +47,14 @@ export default function RootLayout({
         `}} />
       </head>
       <body className={inter.className}>
-        <AuthProvider>
-          <ThemeProviderWrapper>
-            {children}
-            <Toaster />
-          </ThemeProviderWrapper>
-        </AuthProvider>
+        <SessionProvider>
+          <AuthProvider>
+            <ThemeProviderWrapper>
+              {children}
+              <Toaster />
+            </ThemeProviderWrapper>
+          </AuthProvider>
+        </SessionProvider>
       </body>
     </html>
   );

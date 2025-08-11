@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sign } from 'jsonwebtoken';
 import { cookies } from 'next/headers';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { comparePassword } from '@/lib/auth';
@@ -102,7 +104,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate JWT token
+    // Generate JWT token (legacy cookie for compatibility)
     console.log('Generating token');
     const accessToken = sign(
       { 

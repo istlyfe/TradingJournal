@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, AlertCircle } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { signIn, useSession } from "next-auth/react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { safeNavigate } from "@/lib/browser-utils";
 
@@ -34,16 +34,16 @@ function LoginPageContent() {
   const searchParams = useSearchParams();
   const redirectPath = searchParams?.get('redirect') || '/dashboard';
   const { toast } = useToast();
-  const { login, isLoading, isAuthenticated } = useAuth();
+  const { status } = useSession();
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    if (isAuthenticated && !isLoading) {
+    if (status === 'authenticated') {
       router.push(redirectPath);
     }
-  }, [isAuthenticated, isLoading, router, redirectPath]);
+  }, [status, router, redirectPath]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,9 +61,8 @@ function LoginPageContent() {
     }
     
     try {
-      const success = await login(email, password);
-      
-      if (success) {
+      const res = await signIn('credentials', { redirect: false, email, password });
+      if (res?.ok) {
         toast({
           title: "Welcome back!",
           description: "You have successfully logged in",
@@ -195,7 +194,7 @@ function LoginPageContent() {
             <Button 
               type="submit" 
               className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-700" 
-              disabled={isLoading || isDemoLoading}
+              disabled={status === 'loading' || isDemoLoading}
             >
               {isLoading ? (
                 <>
@@ -217,7 +216,7 @@ function LoginPageContent() {
               variant="outline"
               className="w-full"
               onClick={handleDemoLogin}
-              disabled={isLoading || isDemoLoading}
+              disabled={status === 'loading' || isDemoLoading}
             >
               {isDemoLoading ? (
                 <>

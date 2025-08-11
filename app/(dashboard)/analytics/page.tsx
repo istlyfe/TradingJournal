@@ -66,7 +66,7 @@ export default function AnalyticsPage() {
       </div>
     );
   }
-
+  
   // Calculate metrics only if we have trades
   if (trades.length === 0) {
     return (
@@ -84,7 +84,7 @@ export default function AnalyticsPage() {
       </div>
     );
   }
-
+  
   // Calculate metrics
   const metrics = calculateMetrics(trades, selectedAccounts);
 
@@ -92,7 +92,7 @@ export default function AnalyticsPage() {
     <div className="space-y-8 p-6">
       {/* Header with Timeframe Selection */}
       <div className="flex items-center justify-between">
-        <div>
+          <div>
           <h1 className="text-3xl font-bold">Analytics</h1>
           <p className="text-muted-foreground">Track your trading performance</p>
         </div>
@@ -102,10 +102,10 @@ export default function AnalyticsPage() {
             <TabsTrigger value="year">Year</TabsTrigger>
             <TabsTrigger value="month">Month</TabsTrigger>
             <TabsTrigger value="week">Week</TabsTrigger>
-          </TabsList>
-        </Tabs>
+            </TabsList>
+          </Tabs>
       </div>
-
+      
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="p-4">
@@ -147,7 +147,7 @@ export default function AnalyticsPage() {
           </div>
         </Card>
       </div>
-
+      
       {/* Main Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6">
@@ -160,7 +160,7 @@ export default function AnalyticsPage() {
             className="h-[300px]"
           />
         </Card>
-
+        
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Win vs. Loss Distribution</h3>
@@ -174,16 +174,16 @@ export default function AnalyticsPage() {
           />
         </Card>
       </div>
-
+      
       {/* Trading Patterns */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Best Trading Times</h3>
             <Clock className="w-5 h-5 text-muted-foreground" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
+            </div>
+                <div className="grid grid-cols-2 gap-4">
+                      <div>
               <h4 className="font-medium mb-2">By Day</h4>
               <div className="space-y-2">
                 {metrics.bestTradingDays.slice(0, 5).map((day, i) => (
@@ -195,9 +195,9 @@ export default function AnalyticsPage() {
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-            <div>
+                        </div>
+                      </div>
+                      <div>
               <h4 className="font-medium mb-2">By Hour</h4>
               <div className="space-y-2">
                 {metrics.bestTradingHours.slice(0, 5).map((hour, i) => (
@@ -211,21 +211,21 @@ export default function AnalyticsPage() {
                 ))}
               </div>
             </div>
-          </div>
+              </div>
         </Card>
-
+        
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Setup Performance</h3>
             <BarChart2 className="w-5 h-5 text-muted-foreground" />
-          </div>
+            </div>
           <BarChart
             data={metrics.setupPerformance}
             className="h-[300px]"
           />
         </Card>
       </div>
-
+      
       {/* Risk Analysis */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6">
@@ -243,27 +243,27 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Drawdown History</h3>
             <TrendingDown className="w-5 h-5 text-muted-foreground" />
-          </div>
+                        </div>
           <AreaChart
             data={metrics.drawdownHistory}
             className="h-[300px]"
           />
         </Card>
-      </div>
-
+                    </div>
+                    
       {/* Psychological Analysis */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Trading Mood Impact</h3>
             <Activity className="w-5 h-5 text-muted-foreground" />
-          </div>
+                                </div>
           <BarChart
             data={metrics.moodPerformance}
             className="h-[300px]"
           />
-        </Card>
-
+      </Card>
+      
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Consistency Score</h3>

@@ -11,7 +11,7 @@ import {
   ChevronDown,
   PlusCircle
 } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
@@ -26,19 +26,15 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export function TopNav() {
-  const { logout, user } = useAuth();
+  const { data: session } = useSession();
   const router = useRouter();
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out",
-    });
-    router.push("/");
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: '/' });
+    toast({ title: 'Logged out', description: 'You have been successfully logged out' });
   };
 
   // Get initials from user name
@@ -55,10 +51,10 @@ export function TopNav() {
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30 w-full">
       <div className="container flex h-16 items-center justify-between">
         <div>
-          {user && (
+          {session?.user && (
             <span className="text-sm font-medium">
               <span className="text-muted-foreground mr-1">Logged in as</span> 
-              {user.name}
+              {session.user.name || session.user.email}
             </span>
           )}
         </div>
@@ -89,7 +85,7 @@ export function TopNav() {
               >
                 <Avatar className="h-8 w-8 border border-border">
                   <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                    {user ? getInitials(user.name) : "U"}
+                    {getInitials(session?.user?.name || session?.user?.email || "U")}
                   </AvatarFallback>
                 </Avatar>
                 <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} />
@@ -98,8 +94,8 @@ export function TopNav() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">{user?.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                  <p className="text-sm font-medium">{session?.user?.name || 'Signed in'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{session?.user?.email}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />

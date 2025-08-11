@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "npm install && node add-nodejs-runtime.js",
-    "build": "prisma generate && next build",
+    "build": "prisma migrate deploy && prisma generate && next build",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "next lint"

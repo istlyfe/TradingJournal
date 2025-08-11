@@ -43,4 +43,16 @@ This project is configured for deployment on Vercel:
 ```bash
 # Deploy with Vercel CLI
 vercel
+
+## Environment
+
+Create a `.env` file with your database connection and secrets:
+
+```env
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DB_NAME?schema=public
+JWT_SECRET=change_me
+NEXTAUTH_SECRET=change_me
+```
+
+During Vercel builds, migrations are applied automatically via the build script.
 ``` 

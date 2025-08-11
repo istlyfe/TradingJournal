@@ -101,7 +101,8 @@ function LoginPageContent() {
           title: "Demo mode activated!",
           description: "You're now using a demo account with sample data",
         });
-        
+        // Create NextAuth session for the demo user
+        await signIn('credentials', { redirect: false, email: 'demo@example.com', password: 'demo123' });
         // Safely navigate to redirectPath
         safeNavigate(redirectPath);
       } else {

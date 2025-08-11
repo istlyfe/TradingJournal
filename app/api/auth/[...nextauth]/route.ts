@@ -25,6 +25,7 @@ export const authOptions: NextAuthOptions = {
         if (!user) return null;
 
         // Allow demo user with any password if desired
+        // Free demo access: accept any password for demo@example.com
         if (credentials.email === "demo@example.com") {
           return { id: user.id, email: user.email, name: user.name } as any;
         }

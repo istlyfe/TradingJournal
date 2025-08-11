@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sign } from 'jsonwebtoken';
-import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
 import { hashPassword } from '@/lib/auth';
 
 // Specify Node.js runtime
@@ -145,36 +142,6 @@ export async function POST(request: NextRequest) {
           }
         ]
       });
-    }
-
-    // Generate JWT token
-    console.log('Generating JWT token for demo user');
-    const accessToken = sign(
-      { 
-        userId: demoUser.id,
-        email: demoUser.email,
-        name: demoUser.name
-      },
-      process.env.JWT_SECRET || 'demo_secret_key',
-      { expiresIn: '8h' }
-    );
-    console.log('JWT token generated successfully');
-
-    // Set cookies
-    console.log('Setting access token cookie');
-    try {
-      cookies().set({
-        name: 'accessToken',
-        value: accessToken,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 8, // 8 hours
-        path: '/',
-      });
-      console.log('Cookie set successfully');
-    } catch (cookieError) {
-      console.error('Error setting cookie:', cookieError);
-      throw cookieError;
     }
 
     // Return user data (without password)

@@ -103,6 +103,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Update last login
+    await prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
+
     // Generate JWT token (legacy cookie for compatibility)
     console.log('Generating token');
     const accessToken = sign(

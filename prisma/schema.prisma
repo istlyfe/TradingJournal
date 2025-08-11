@@ -18,6 +18,7 @@ model User {
   name          String
   email         String    @unique
   password      String
+  lastLogin     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   accounts      Account[]

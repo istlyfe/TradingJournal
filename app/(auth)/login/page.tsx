@@ -176,6 +176,7 @@ function LoginPageContent() {
                 <Label htmlFor="password">Password</Label>
                 <Link 
                   href="/forgot-password" 
+                  prefetch={false}
                   className="text-sm text-primary hover:underline"
                 >
                   Forgot password?

@@ -69,6 +69,7 @@ export async function POST(request: Request) {
           name,
           email,
           password: hashedPassword,
+          lastLogin: new Date(),
           // Create a default account for the user
           accounts: {
             create: {

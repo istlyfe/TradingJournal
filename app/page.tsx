@@ -1,25 +1,82 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession, signIn } from "next-auth/react";
+import { Button } from "@/components/ui/button";
+import { safeNavigate } from "@/lib/browser-utils";
+import { Loader2 } from "lucide-react";
 
 export default function HomePage() {
+  const { status } = useSession();
   const router = useRouter();
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
 
-  useEffect(() => {
-    // Immediately redirect to dashboard
-    router.push('/dashboard');
-  }, [router]);
+  const handleTryDemo = async () => {
+    try {
+      setIsDemoLoading(true);
+      const res = await fetch('/api/auth/demo', { method: 'POST' });
+      const ok = res.ok;
+      // Create NextAuth session for the demo user
+      await signIn('credentials', { redirect: false, email: 'demo@example.com', password: 'demo123' });
+      if (ok) {
+        safeNavigate('/dashboard');
+      }
+    } catch (_) {
+      // no-op
+    } finally {
+      setIsDemoLoading(false);
+    }
+  };
 
-  // Show minimal loading UI while redirect happens
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin h-8 w-8 text-primary">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-      </div>
-    </div>
+    <main className="min-h-screen bg-gradient-to-b from-background to-muted">
+      <nav className="mx-auto max-w-6xl flex items-center justify-between px-6 py-5">
+        <Link href="/" className="font-bold text-lg">
+          Trading Journal
+        </Link>
+        <div className="flex gap-3">
+          {status === 'authenticated' ? (
+            <Button onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
+          ) : (
+            <>
+              <Link href="/login"><Button variant="ghost">Sign In</Button></Link>
+              <Link href="/signup"><Button>Sign Up</Button></Link>
+            </>
+          )}
+        </div>
+      </nav>
+
+      <section className="mx-auto max-w-6xl px-6 py-16 grid lg:grid-cols-2 gap-10 items-center">
+        <div>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Level up your trading with a smarter journal</h1>
+          <p className="mt-4 text-muted-foreground text-lg">
+            Import trades, analyze performance, track psychology, and improve consistency with actionable insights.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            {status === 'authenticated' ? (
+              <Button size="lg" onClick={() => router.push('/dashboard')}>Open Dashboard</Button>
+            ) : (
+              <>
+                <Link href="/signup"><Button size="lg">Get Started</Button></Link>
+                <Link href="/login"><Button variant="outline" size="lg">Sign In</Button></Link>
+                <Button variant="secondary" size="lg" onClick={handleTryDemo} disabled={isDemoLoading}>
+                  {isDemoLoading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Loading Demo...</>) : 'Try Demo'}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="border rounded-xl p-6 bg-card shadow-sm">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="p-4 rounded-lg bg-muted">Win Rate, P&L, Streaks</div>
+            <div className="p-4 rounded-lg bg-muted">Best Times & Setups</div>
+            <div className="p-4 rounded-lg bg-muted">Risk & Drawdown</div>
+            <div className="p-4 rounded-lg bg-muted">Mood & Notes</div>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }

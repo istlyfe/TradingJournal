@@ -36,7 +36,6 @@ export async function POST(request: NextRequest) {
             id: true,
             name: true,
             color: true,
-            isDefault: true,
           },
         },
       },

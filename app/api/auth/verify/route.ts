@@ -21,12 +21,12 @@ export async function GET(request: NextRequest) {
       if (id) {
         user = await prisma.user.findUnique({
           where: { id },
-          include: { accounts: { select: { id: true, name: true, color: true, isDefault: true } } },
+          include: { accounts: { select: { id: true, name: true, color: true } } },
         });
       } else if (email) {
         user = await prisma.user.findUnique({
           where: { email },
-          include: { accounts: { select: { id: true, name: true, color: true, isDefault: true } } },
+          include: { accounts: { select: { id: true, name: true, color: true } } },
         });
       }
       if (user) {
@@ -79,7 +79,6 @@ export async function GET(request: NextRequest) {
               id: true,
               name: true,
               color: true,
-              isDefault: true,
             },
           },
         },

@@ -38,12 +38,10 @@ export async function POST(request: NextRequest) {
                 {
                   name: 'Demo Trading Account',
                   color: '#FF5733', // Orange color for trading account
-                  isDefault: true,
                 },
                 {
                   name: 'Demo Crypto Account',
                   color: '#3498DB', // Blue color for crypto account 
-                  isDefault: false,
                 }
               ]
             }

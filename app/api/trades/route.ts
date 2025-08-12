@@ -1,73 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calculatePnL } from "@/lib/tradeService";
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 // Specify Node.js runtime
 export const runtime = 'nodejs';
-
-
-// Comment out for static export
-// export const dynamic = 'force-dynamic';
-
-// Mock data
-const mockTrades = [
-  {
-    id: '1',
-    user_id: 'user_1',
-    symbol: 'NQ',
-    trade_type: 'LONG',
-    entry_price: 18500,
-    exit_price: 18520,
-    entry_date: '2023-06-01T10:00:00Z',
-    exit_date: '2023-06-01T11:00:00Z',
-    quantity: 1,
-    fees: 0,
-    profit_loss: 400, // 20 point difference * $20 multiplier
-    profit_loss_percentage: 0.11,
-    status: 'CLOSED',
-    strategy_id: null,
-    risk_reward_ratio: null
-  },
-  {
-    id: '2',
-    user_id: 'user_1',
-    symbol: 'ES',
-    trade_type: 'SHORT',
-    entry_price: 5200,
-    exit_price: 5180,
-    entry_date: '2023-06-02T10:00:00Z',
-    exit_date: '2023-06-02T11:00:00Z',
-    quantity: 1,
-    fees: 0,
-    profit_loss: 1000, // 20 point difference * $50 multiplier
-    profit_loss_percentage: 0.38,
-    status: 'CLOSED',
-    strategy_id: null,
-    risk_reward_ratio: null
-  }
-];
+export const dynamic = 'force-dynamic';
 
 // GET all trades for the current user
 export async function GET(request: NextRequest) {
   try {
-    // Get token from cookies
-    const accessToken = request.cookies.get('accessToken')?.value;
+    // Get session using NextAuth
+    const session = await getServerSession(authOptions);
 
-    if (!accessToken) {
+    if (!session?.user?.email) {
       return NextResponse.json(
         { success: false, message: 'Authentication required' },
         { status: 401 }
       );
     }
 
-    // Verify token
-    const decoded = verifyToken(accessToken);
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true }
+    });
 
-    if (!decoded || typeof decoded === 'string') {
+    if (!user) {
       return NextResponse.json(
-        { success: false, message: 'Invalid token' },
-        { status: 401 }
+        { success: false, message: 'User not found' },
+        { status: 404 }
       );
     }
 
@@ -78,7 +41,7 @@ export async function GET(request: NextRequest) {
     // Query trades for the user
     const trades = await prisma.trade.findMany({
       where: {
-        userId: decoded.userId,
+        userId: user.id,
         ...(accountId ? { accountId } : {}),
       },
       orderBy: {
@@ -102,100 +65,81 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST create a new trade
+// POST new trade
 export async function POST(request: NextRequest) {
   try {
-    // Get token from cookies
-    const accessToken = request.cookies.get('accessToken')?.value;
+    // Get session using NextAuth
+    const session = await getServerSession(authOptions);
 
-    if (!accessToken) {
+    if (!session?.user?.email) {
       return NextResponse.json(
         { success: false, message: 'Authentication required' },
         { status: 401 }
       );
     }
 
-    // Verify token
-    const decoded = verifyToken(accessToken);
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true }
+    });
 
-    if (!decoded || typeof decoded === 'string') {
+    if (!user) {
       return NextResponse.json(
-        { success: false, message: 'Invalid token' },
-        { status: 401 }
+        { success: false, message: 'User not found' },
+        { status: 404 }
       );
     }
 
-    // Parse request body
-    const data = await request.json();
-    const {
-      accountId,
-      symbol,
-      direction,
-      entryPrice,
-      exitPrice,
-      quantity,
-      entryDate,
-      exitDate,
-      fees,
-      pnl,
-      notes,
-      strategy,
-      emotionalState,
-      tags,
-    } = data;
-
-    // Validate input
-    if (!accountId || !symbol || !direction || !entryPrice || !quantity || !entryDate) {
+    const body = await request.json();
+    
+    // Validate required fields
+    const { symbol, tradeType, entryPrice, quantity, accountId } = body;
+    
+    if (!symbol || !tradeType || !entryPrice || !quantity || !accountId) {
       return NextResponse.json(
         { success: false, message: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // Verify the account belongs to the user
+    // Verify account belongs to user
     const account = await prisma.account.findFirst({
       where: {
         id: accountId,
-        userId: decoded.userId,
-      },
+        userId: user.id
+      }
     });
 
     if (!account) {
       return NextResponse.json(
         { success: false, message: 'Invalid account' },
-        { status: 403 }
+        { status: 400 }
       );
     }
 
-    // Create the trade
-    const newTrade = await prisma.trade.create({
+    // Create trade
+    const trade = await prisma.trade.create({
       data: {
+        userId: user.id,
         accountId,
-        userId: decoded.userId,
         symbol,
-        direction,
-        entryPrice,
-        exitPrice,
-        quantity,
-        entryDate: new Date(entryDate),
-        exitDate: exitDate ? new Date(exitDate) : null,
-        fees: fees || 0,
-        pnl: pnl || null,
-        notes: notes || '',
-        strategy: strategy || '',
-        emotionalState: emotionalState || '',
-        tags: tags || [],
+        tradeType,
+        entryPrice: parseFloat(entryPrice),
+        quantity: parseInt(quantity),
+        entryDate: new Date(),
+        status: 'OPEN',
+        ...body
       },
       include: {
-        account: true,
-      },
+        account: true
+      }
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Trade created successfully',
-      trade: newTrade,
-    }, { status: 201 });
+      trade,
+    });
   } catch (error) {
     console.error('Error creating trade:', error);
     return NextResponse.json(

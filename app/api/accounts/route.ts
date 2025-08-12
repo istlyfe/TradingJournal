@@ -1,38 +1,42 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 // Specify Node.js runtime
 export const runtime = 'nodejs';
-
+export const dynamic = 'force-dynamic';
 
 // GET all accounts for the current user
 export async function GET(request: NextRequest) {
   try {
-    // Get token from cookies
-    const accessToken = request.cookies.get('accessToken')?.value;
+    // Get session using NextAuth
+    const session = await getServerSession(authOptions);
 
-    if (!accessToken) {
+    if (!session?.user?.email) {
       return NextResponse.json(
         { success: false, message: 'Authentication required' },
         { status: 401 }
       );
     }
 
-    // Verify token
-    const decoded = verifyToken(accessToken);
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true }
+    });
 
-    if (!decoded || typeof decoded === 'string') {
+    if (!user) {
       return NextResponse.json(
-        { success: false, message: 'Invalid token' },
-        { status: 401 }
+        { success: false, message: 'User not found' },
+        { status: 404 }
       );
     }
-
-    // Fetch all accounts for the user
+    
+    // Query accounts for the user
     const accounts = await prisma.account.findMany({
       where: {
-        userId: decoded.userId,
+        userId: user.id,
       },
       orderBy: {
         createdAt: 'desc',
@@ -52,72 +56,61 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST create a new account
+// POST new account
 export async function POST(request: NextRequest) {
   try {
-    // Get token from cookies
-    const accessToken = request.cookies.get('accessToken')?.value;
+    // Get session using NextAuth
+    const session = await getServerSession(authOptions);
 
-    if (!accessToken) {
+    if (!session?.user?.email) {
       return NextResponse.json(
         { success: false, message: 'Authentication required' },
         { status: 401 }
       );
     }
 
-    // Verify token
-    const decoded = verifyToken(accessToken);
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true }
+    });
 
-    if (!decoded || typeof decoded === 'string') {
+    if (!user) {
       return NextResponse.json(
-        { success: false, message: 'Invalid token' },
-        { status: 401 }
+        { success: false, message: 'User not found' },
+        { status: 404 }
       );
     }
 
-    // Parse the request body
-    const data = await request.json();
-    const { name, broker, accountType, currency, initialBalance, currentBalance, isDefault } = data;
-
-    // Validate input
-    if (!name || !broker || !accountType || !currency || initialBalance === undefined) {
+    const body = await request.json();
+    
+    // Validate required fields
+    const { name, type, currency, initialBalance } = body;
+    
+    if (!name || !type || !currency) {
       return NextResponse.json(
         { success: false, message: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // If this account is marked as default, unset default on other accounts
-    if (isDefault) {
-      await prisma.account.updateMany({
-        where: {
-          userId: decoded.userId,
-          isDefault: true,
-        },
-        data: {
-          isDefault: false,
-        },
-      });
-    }
-
-    // Create the account
-    const newAccount = await prisma.account.create({
+    // Create account
+    const account = await prisma.account.create({
       data: {
+        userId: user.id,
         name,
-        broker,
-        accountType,
+        type,
         currency,
-        initialBalance,
-        currentBalance: currentBalance || initialBalance,
-        isDefault: isDefault || false,
-        userId: decoded.userId,
+        initialBalance: initialBalance ? parseFloat(initialBalance) : 0,
+        currentBalance: initialBalance ? parseFloat(initialBalance) : 0,
+        color: body.color || '#7C3AED',
+        ...body
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Account created successfully',
-      account: newAccount,
+      account,
     });
   } catch (error) {
     console.error('Error creating account:', error);

@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
+import { useSession, signOut } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -67,7 +67,7 @@ export function Sidebar() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { logout, user } = useAuth();
+  const { data: session } = useSession();
   const { toast } = useToast();
   
   // Debug the current pathname
@@ -95,13 +95,12 @@ export function Sidebar() {
       .substring(0, 2);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: '/' });
     toast({
       title: "Logged out",
       description: "You have been successfully logged out",
     });
-    router.push("/");
   };
 
   return (
@@ -189,13 +188,17 @@ export function Sidebar() {
             >
               <Avatar className="h-8 w-8 border border-border">
                 <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                  {user ? getInitials(user.name) : "U"}
+                  {session?.user ? getInitials(session.user.name || session.user.email || "") : "U"}
                 </AvatarFallback>
               </Avatar>
               {!isCollapsed && (
                 <div className="flex flex-col items-start text-left overflow-hidden">
-                  <span className="text-sm font-medium truncate max-w-[140px]">{user?.name}</span>
-                  <span className="text-xs text-muted-foreground truncate max-w-[140px]">{user?.email}</span>
+                  <span className="text-sm font-medium truncate max-w-[140px]">
+                    {session?.user?.name || 'Signed in'}
+                  </span>
+                  <span className="text-xs text-muted-foreground truncate max-w-[140px]">
+                    {session?.user?.email}
+                  </span>
                 </div>
               )}
             </Button>
@@ -203,8 +206,8 @@ export function Sidebar() {
           <DropdownMenuContent align={isCollapsed ? "center" : "start"} className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">{user?.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                <p className="text-sm font-medium">{session?.user?.name || 'Signed in'}</p>
+                <p className="text-xs text-muted-foreground truncate">{session?.user?.email}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

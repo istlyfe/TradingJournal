@@ -1,209 +1,211 @@
-import { useState, useEffect } from 'react';
-import { ACCOUNT_CREATED, ACCOUNT_SELECTION_CHANGE } from '@/components/accounts/AccountFilter';
-
-export interface Account {
-  id: string;
-  name: string;
-  createdAt: string;
-  isArchived: boolean;
-  color?: string;
-}
+import { useState, useEffect, useCallback } from 'react';
+import { Account } from '@/types/account';
+import { useSession } from 'next-auth/react';
 
 export function useAccounts() {
+  const { data: session, status } = useSession();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
-  const [initialized, setInitialized] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load accounts and selected accounts from localStorage
-  useEffect(() => {
-    const loadAccountsFromStorage = () => {
-      // Try to load accounts from localStorage first
-      const storedAccounts = localStorage.getItem('tradingJournalAccounts');
-      let loadedAccounts: Account[] = [];
+  // Fetch accounts from API
+  const fetchAccounts = useCallback(async () => {
+    if (!session?.user?.email) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/accounts');
       
-      if (storedAccounts) {
-        try {
-          loadedAccounts = JSON.parse(storedAccounts);
-          setAccounts(loadedAccounts);
-        } catch (error) {
-          console.error("Error parsing accounts from localStorage:", error);
-        }
+      if (!response.ok) {
+        throw new Error(`Failed to fetch accounts: ${response.statusText}`);
       }
+
+      const data = await response.json();
       
-      // If no accounts were loaded, initialize with default account
-      if (!storedAccounts || loadedAccounts.length === 0) {
-        const defaultAccount: Account = {
-          id: '1',
-          name: 'Default Account',
-          createdAt: new Date().toISOString(),
-          isArchived: false,
-          color: '#7C3AED' // Default purple color
-        };
+      if (data.success) {
+        setAccounts(data.accounts);
         
-        loadedAccounts = [defaultAccount];
-        setAccounts(loadedAccounts);
-        localStorage.setItem('tradingJournalAccounts', JSON.stringify(loadedAccounts));
-      }
-      
-      return loadedAccounts;
-    };
-    
-    const loadSelectedAccountsFromStorage = (loadedAccounts: Account[]) => {
-      // Try to load selected accounts from localStorage
-      const storedSelectedAccounts = localStorage.getItem('tradingJournalSelectedAccounts');
-      if (storedSelectedAccounts) {
-        try {
-          const parsedSelectedAccounts = JSON.parse(storedSelectedAccounts);
-          // Filter out any selected accounts that no longer exist
-          const validSelectedAccounts = parsedSelectedAccounts.filter((id: string) => 
-            loadedAccounts.some(acc => acc.id === id)
-          );
-          setSelectedAccounts(validSelectedAccounts);
-        } catch (error) {
-          console.error("Error parsing selected accounts from localStorage:", error);
-          // Fall back to selecting all accounts
-          setSelectedAccounts(loadedAccounts.map(acc => acc.id));
+        // If no accounts are selected, select all by default
+        if (selectedAccounts.length === 0 && data.accounts.length > 0) {
+          setSelectedAccounts(data.accounts.map((acc: Account) => acc.id));
         }
       } else {
-        // If no selected accounts in localStorage, select all accounts
-        setSelectedAccounts(loadedAccounts.map(acc => acc.id));
-        localStorage.setItem(
-          'tradingJournalSelectedAccounts', 
-          JSON.stringify(loadedAccounts.map(acc => acc.id))
-        );
+        throw new Error(data.message || 'Failed to fetch accounts');
       }
-    };
-    
-    // Initial load
-    const loadedAccounts = loadAccountsFromStorage();
-    loadSelectedAccountsFromStorage(loadedAccounts);
-    setInitialized(true);
-    
-    // Set up event listeners for real-time updates
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'tradingJournalAccounts') {
-        const updatedAccounts = loadAccountsFromStorage();
-        loadSelectedAccountsFromStorage(updatedAccounts);
-      } 
-      else if (e.key === 'tradingJournalSelectedAccounts') {
-        loadSelectedAccountsFromStorage(accounts);
-      }
-    };
-    
-    const handleSelectionChange = (e: CustomEvent) => {
-      if (e.detail?.selectedAccounts) {
-        setSelectedAccounts(e.detail.selectedAccounts);
-      }
-    };
-    
-    // Listen for storage events (from other tabs/windows)
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Handle local storage changes (same tab)
-    window.addEventListener(ACCOUNT_SELECTION_CHANGE, handleSelectionChange as EventListener);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener(ACCOUNT_SELECTION_CHANGE, handleSelectionChange as EventListener);
-    };
-  }, []);
-
-  // Save accounts to localStorage whenever they change
-  useEffect(() => {
-    if (initialized && accounts.length > 0) {
-      localStorage.setItem('tradingJournalAccounts', JSON.stringify(accounts));
+    } catch (err) {
+      console.error('Error fetching accounts:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch accounts');
+    } finally {
+      setIsLoading(false);
     }
-  }, [accounts, initialized]);
+  }, [session?.user?.email, selectedAccounts.length]);
 
-  // Save selected accounts to localStorage whenever they change
-  useEffect(() => {
-    if (initialized && selectedAccounts.length >= 0) {
-      localStorage.setItem('tradingJournalSelectedAccounts', JSON.stringify(selectedAccounts));
-      
-      // Dispatch both event types for maximum compatibility
-      window.dispatchEvent(new CustomEvent(ACCOUNT_SELECTION_CHANGE, { 
-        detail: { selectedAccounts }
-      }));
-      
-      window.dispatchEvent(new CustomEvent('account-selection-change', { 
-        detail: { selectedAccounts }
-      }));
-      
-      // Also dispatch a storage event for components using storage listeners
-      window.dispatchEvent(new Event('storage'));
-      
-      console.log("useAccounts: dispatched selection change events", selectedAccounts);
+  // Create new account
+  const createAccount = useCallback(async (accountData: Partial<Account>) => {
+    if (!session?.user?.email) {
+      throw new Error('Authentication required');
     }
-  }, [selectedAccounts, initialized]);
+
+    try {
+      const response = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(accountData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create account');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Add new account to local state
+        setAccounts(prev => [...prev, data.account]);
+        
+        // Select the new account by default
+        setSelectedAccounts(prev => [...prev, data.account.id]);
+        
+        return data.account;
+      } else {
+        throw new Error(data.message || 'Failed to create account');
+      }
+    } catch (err) {
+      console.error('Error creating account:', err);
+      throw err;
+    }
+  }, [session?.user?.email]);
+
+  // Update account
+  const updateAccount = useCallback(async (accountId: string, updates: Partial<Account>) => {
+    if (!session?.user?.email) {
+      throw new Error('Authentication required');
+    }
+
+    try {
+      const response = await fetch(`/api/accounts/${accountId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update account');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update account in local state
+        setAccounts(prev => prev.map(acc => 
+          acc.id === accountId ? { ...acc, ...updates } : acc
+        ));
+        return data.account;
+      } else {
+        throw new Error(data.message || 'Failed to update account');
+      }
+    } catch (err) {
+      console.error('Error updating account:', err);
+      throw err;
+    }
+  }, [session?.user?.email]);
+
+  // Delete account
+  const deleteAccount = useCallback(async (accountId: string) => {
+    if (!session?.user?.email) {
+      throw new Error('Authentication required');
+    }
+
+    try {
+      const response = await fetch(`/api/accounts/${accountId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete account');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Remove account from local state
+        setAccounts(prev => prev.filter(acc => acc.id !== accountId));
+        
+        // Remove from selected accounts
+        setSelectedAccounts(prev => prev.filter(id => id !== accountId));
+        
+        return true;
+      } else {
+        throw new Error(data.message || 'Failed to delete account');
+      }
+    } catch (err) {
+      console.error('Error deleting account:', err);
+      throw err;
+    }
+  }, [session?.user?.email]);
 
   // Toggle account selection
-  const toggleAccount = (accountId: string) => {
+  const toggleAccount = useCallback((accountId: string) => {
     setSelectedAccounts(prev => {
-      const newSelection = prev.includes(accountId)
-        ? prev.filter(id => id !== accountId)
-        : [...prev, accountId];
-      
-      return newSelection;
+      if (prev.includes(accountId)) {
+        return prev.filter(id => id !== accountId);
+      } else {
+        return [...prev, accountId];
+      }
     });
-  };
+  }, []);
 
-  // Create a new account
-  const createAccount = (name: string, color?: string) => {
-    const newAccount: Account = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      createdAt: new Date().toISOString(),
-      isArchived: false,
-      color: color || '#' + Math.floor(Math.random()*16777215).toString(16) // Random color if none provided
-    };
+  // Load accounts when session changes
+  useEffect(() => {
+    if (session?.user?.email) {
+      fetchAccounts();
+    } else {
+      setAccounts([]);
+      setSelectedAccounts([]);
+    }
+  }, [session?.user?.email, fetchAccounts]);
 
-    // Update accounts in state
-    const updatedAccounts = [...accounts, newAccount];
-    setAccounts(updatedAccounts);
-    
-    // Also select the new account
-    const updatedSelection = [...selectedAccounts, newAccount.id];
-    setSelectedAccounts(updatedSelection);
-    
-    // Update localStorage directly
-    localStorage.setItem('tradingJournalAccounts', JSON.stringify(updatedAccounts));
-    
-    // Update localStorage for selected accounts
-    localStorage.setItem('tradingJournalSelectedAccounts', JSON.stringify(updatedSelection));
-    
-    // Dispatch account creation event
-    window.dispatchEvent(new CustomEvent(ACCOUNT_CREATED, { 
-      detail: { newAccount }
-    }));
-    
-    // Dispatch selection change event
-    window.dispatchEvent(new CustomEvent(ACCOUNT_SELECTION_CHANGE, { 
-      detail: { selectedAccounts: updatedSelection }
-    }));
-    
-    // Force storage event for other components
-    window.dispatchEvent(new Event('storage'));
-    
-    return newAccount;
-  };
-
-  // Archive/unarchive an account
-  const toggleArchiveAccount = (accountId: string) => {
-    setAccounts(prev => 
-      prev.map(account => 
-        account.id === accountId 
-          ? { ...account, isArchived: !account.isArchived }
-          : account
-      )
-    );
-  };
+  // Fallback to localStorage if API fails (for backward compatibility)
+  useEffect(() => {
+    if (accounts.length === 0 && !isLoading && session?.user?.email) {
+      try {
+        const storedAccounts = localStorage.getItem('tradingJournalAccounts');
+        if (storedAccounts) {
+          const parsedAccounts = JSON.parse(storedAccounts);
+          setAccounts(parsedAccounts);
+          
+          // Select all accounts by default
+          if (parsedAccounts.length > 0) {
+            setSelectedAccounts(parsedAccounts.map((acc: Account) => acc.id));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading accounts from localStorage:', error);
+      }
+    }
+  }, [accounts, isLoading, session?.user?.email]);
 
   return {
     accounts,
     selectedAccounts,
     setSelectedAccounts,
     toggleAccount,
+    isLoading,
+    error,
+    fetchAccounts,
     createAccount,
-    toggleArchiveAccount
+    updateAccount,
+    deleteAccount,
+    setAccounts, // Keep for backward compatibility
   };
 }

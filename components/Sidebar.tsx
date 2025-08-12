@@ -1,158 +1,229 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  TrendingUp, 
-  BookOpen, 
-  LineChart, 
-  Settings,
-  ChevronsLeft,
-  ChevronRight,
-  Trophy
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/context/auth-context';
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+  BarChart2,
+  ChevronLeft,
+  ChevronRight,
+  LineChart,
+  List,
+  Settings,
+  BookOpen,
+  CreditCard,
+  LogOut,
+  User,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/components/ui/use-toast";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const navItems = [
   {
-    title: 'Dashboard',
-    href: '/dashboard',
-    icon: LayoutDashboard,
+    title: "Dashboard",
+    href: "/dashboard",
+    icon: BarChart2,
   },
   {
-    title: 'Trades',
-    href: '/trades',
-    icon: TrendingUp,
+    title: "Trades",
+    href: "/trades",
+    icon: List,
   },
   {
-    title: 'Journal',
-    href: '/journal',
+    title: "Journal",
+    href: "/journal",
     icon: BookOpen,
   },
   {
-    title: 'Analytics',
-    href: '/analytics',
+    title: "Analytics",
+    href: "/analytics",
     icon: LineChart,
   },
   {
-    title: 'Progress',
-    href: '/progress',
-    icon: Trophy,
+    title: "Accounts",
+    href: "/accounts",
+    icon: CreditCard,
   },
   {
-    title: 'Settings',
-    href: '/settings',
+    title: "Settings",
+    href: "/settings",
     icon: Settings,
   },
 ];
 
 export function Sidebar() {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  const { user } = useAuth();
+  const router = useRouter();
+  const { logout, user } = useAuth();
+  const { toast } = useToast();
+  
+  // Debug the current pathname
+  console.log("Current pathname:", pathname);
 
-  // Toggle sidebar state
-  const toggleSidebar = () => {
-    // Get the main content element
-    const mainContent = document.querySelector('main');
-    if (mainContent) {
-      // If collapsing, remove previous margin and add small margin
-      if (!collapsed) {
-        mainContent.classList.remove('md:ml-64');
-        mainContent.classList.add('md:ml-16');
-      } else {
-        // If expanding, remove small margin and add large margin
-        mainContent.classList.remove('md:ml-16');
-        mainContent.classList.add('md:ml-64');
-      }
+  // Helper function to check if a path is active
+  const isPathActive = (itemHref: string) => {
+    // For dashboard path, only exact match
+    if (itemHref === "/dashboard") {
+      return pathname === "/dashboard";
     }
-    // Toggle state
-    setCollapsed(!collapsed);
+    
+    // For other paths, check if pathname includes the href
+    // This handles both exact matches and nested routes
+    return pathname === itemHref || pathname.includes(itemHref + "/");
+  };
+
+  // Get initials from user name
+  const getInitials = (name: string = "") => {
+    return name
+      .split(' ')
+      .map(part => part[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  const handleLogout = () => {
+    logout();
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out",
+    });
+    router.push("/");
   };
 
   return (
-    <aside
+    <div
       className={cn(
-        "fixed left-0 top-16 h-[calc(100vh-4rem)] border-r bg-gradient-to-b from-background to-background/80 hidden md:block transition-all duration-300 z-30 overflow-y-auto",
-        collapsed ? "w-16" : "w-64"
+        "relative flex flex-col border-r bg-background transition-all duration-300 ease-in-out",
+        isCollapsed ? "w-16" : "w-64"
       )}
     >
-      <div className="flex h-full flex-col">
-        <div className="relative px-3 py-4">
-          {/* Collapse Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebar}
-            className={cn(
-              "absolute top-2 -right-3 h-6 w-6 rounded-full border shadow-sm bg-background z-10",
-              collapsed ? "-right-3" : "-right-3"
-            )}
-          >
-            {collapsed ? 
-              <ChevronRight className="h-3 w-3" /> : 
-              <ChevronsLeft className="h-3 w-3" />
-            }
-            <span className="sr-only">Toggle sidebar</span>
-          </Button>
-          
-          {/* Navigation Items */}
-          <div className="space-y-2 mt-1">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-              
-              return collapsed ? (
-                <TooltipProvider key={item.href} delayDuration={0}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Link
-                        href={item.href}
-                        className={cn(
-                          'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
-                          isActive
-                            ? 'bg-primary text-primary-foreground shadow-md'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                        )}
-                      >
-                        <item.icon className="h-5 w-5" />
-                        <span className="sr-only">{item.title}</span>
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="border bg-card text-card-foreground">
-                      {item.title}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
-                    isActive
-                      ? 'bg-primary text-primary-foreground shadow-md'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  )}
-                >
-                  <item.icon className="h-5 w-5 flex-shrink-0" />
-                  <span className="truncate">{item.title}</span>
-                  {isActive && <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary-foreground/50"></div>}
-                </Link>
-              );
-            })}
-          </div>
-        </div>
+      {/* Toggle Button */}
+      <Button
+        variant="default"
+        size="icon"
+        className="absolute -right-4 top-20 z-20 rounded-full border-0 shadow-md bg-black text-white h-8 w-8 p-0 hover:bg-black/90"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+      >
+        {isCollapsed ? (
+          <ChevronRight className="h-4 w-4" />
+        ) : (
+          <ChevronLeft className="h-4 w-4" />
+        )}
+      </Button>
+
+      {/* Logo */}
+      <div className="flex h-14 items-center border-b px-4">
+        <span className={cn(
+          "font-bold transition-all duration-300",
+          isCollapsed ? "w-0 opacity-0" : "w-full opacity-100"
+        )}>
+          Trading Journal
+        </span>
       </div>
-    </aside>
+
+      {/* Navigation Items */}
+      <nav className="flex-1 space-y-1 p-2">
+        {navItems.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent group relative z-0",
+              isPathActive(item.href) ? "bg-accent text-primary font-medium" : "text-muted-foreground",
+              isCollapsed && "justify-center"
+            )}
+            onClick={(e) => {
+              // Prevent default navigation if already on this page
+              if (pathname === item.href) {
+                e.preventDefault();
+                return;
+              }
+              
+              // Debug what's happening when a link is clicked
+              console.log(`Navigating to: ${item.href}, current pathname: ${pathname}`);
+            }}
+          >
+            <item.icon className={cn(
+              "h-4 w-4 transition-colors",
+              isPathActive(item.href) ? "text-primary" : "text-muted-foreground",
+            )} />
+            <span
+              className={cn(
+                "transition-all duration-300",
+                isCollapsed ? "w-0 opacity-0 absolute" : "w-full opacity-100 relative"
+              )}
+            >
+              {item.title}
+            </span>
+            {isPathActive(item.href) && (
+              <span className="absolute inset-y-0 left-0 w-1 bg-primary rounded-r-full" />
+            )}
+          </Link>
+        ))}
+      </nav>
+      
+      {/* User menu at bottom */}
+      <div className="mt-auto border-t p-4">
+        <DropdownMenu open={isUserMenuOpen} onOpenChange={setIsUserMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="ghost" 
+              className={cn(
+                "w-full flex items-center justify-start gap-3 px-3 py-2 hover:bg-accent",
+                isCollapsed && "justify-center"
+              )}
+            >
+              <Avatar className="h-8 w-8 border border-border">
+                <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                  {user ? getInitials(user.name) : "U"}
+                </AvatarFallback>
+              </Avatar>
+              {!isCollapsed && (
+                <div className="flex flex-col items-start text-left overflow-hidden">
+                  <span className="text-sm font-medium truncate max-w-[140px]">{user?.name}</span>
+                  <span className="text-xs text-muted-foreground truncate max-w-[140px]">{user?.email}</span>
+                </div>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align={isCollapsed ? "center" : "start"} className="w-56">
+            <DropdownMenuLabel>
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium">{user?.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/profile")}>
+              <User className="mr-2 h-4 w-4" />
+              <span>Profile</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/settings")}>
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Settings</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="cursor-pointer text-red-500 focus:text-red-500" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Logout</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
   );
-} 
+}

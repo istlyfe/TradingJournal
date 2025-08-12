@@ -24,7 +24,7 @@ export default function DashboardLayout({
         <TopNav />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
-          <main className="flex-1 overflow-y-auto bg-background p-4 md:p-6 transition-all duration-300 md:ml-64">
+          <main className="flex-1 overflow-y-auto bg-background p-3 sm:p-4 md:p-6 transition-all duration-300 md:ml-64">
             {children}
           </main>
         </div>
